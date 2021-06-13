@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 let Utils = { };
 
 Utils.onResize = function(element, callback) {
@@ -14,6 +16,17 @@ Utils.onResize = function(element, callback) {
 
     // start observing for resize
     resize_ob.observe(element);
+}
+
+Utils.parseIncludes = function( string ) {
+    var utils_includepattern = /#include <(.*)>/gm;
+    
+    function replace( match , include ) {
+        var replace = THREE.ShaderChunk[ include ];
+        return Utils.parseIncludes( replace );
+    }
+
+    return string.replace( utils_includepattern, replace );
 }
 
 export default Utils;

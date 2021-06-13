@@ -1,17 +1,54 @@
 import * as THREE from "three";
 import DoubleRT from "./doubleRT";
+import Utils from "./utils";
 
 export default class SSR {
     constructor(renderer, sceneCamera, controls, normalRT, positionRT, depthRT, colorRT) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        this.SSRRT = DoubleRT(sizeVector.x, sizeVector.y, THREE.LinearFilter);
+        // this.SSRRT = DoubleRT(sizeVector.x, sizeVector.y, THREE.LinearFilter);
 
-        this.material = new THREE.ShaderMaterial({
+        let rts = [];
+        for(let i = 0; i < 2; i++) {
+            let renderTarget = new THREE.WebGLMultipleRenderTargets(
+                sizeVector.x * 1,
+                sizeVector.y * 1,
+                2
+            );
+            
+            for ( let j = 0, il = renderTarget.texture.length; j < il; j ++ ) {
+                renderTarget.texture[ j ].minFilter = THREE.NearestFilter;
+                renderTarget.texture[ j ].magFilter = THREE.NearestFilter;
+                renderTarget.texture[ j ].type = THREE.FloatType;
+            }
+
+            renderTarget.texture[ 0 ].name = 'ssrColor';
+            renderTarget.texture[ 1 ].name = 'ssrUv';
+
+            rts.push(renderTarget);
+        }
+        
+        this.SSRRT = {
+            read:  rts[0],
+            write: rts[1],
+            swap: function() {
+                let temp   = this.read;
+                this.read  = this.write;
+                this.write = temp;
+            },
+            setSize: function(w, h) {
+                rt1.setSize(w, h);
+                rt2.setSize(w, h);
+            },
+        }
+
+
+
+        this.material = new THREE.RawShaderMaterial({
             uniforms: {
                 uTAA:          { type: "t", value: null },
-                uOldSSR:       { type: "t", value: null },
+                uOldSSRColor:       { type: "t", value: null },
                 uPosition:     { type: "t", value: positionRT.texture },
                 uDepth:        { type: "t", value: depthRT.texture },
                 uNormal:       { type: "t", value: normalRT.texture },
@@ -22,9 +59,18 @@ export default class SSR {
             },
             
             vertexShader: `
-                varying vec2 vUv;
-                varying mat4 vProjViewMatrix;
-                varying mat4 vViewMatrix;
+                in vec3 position;
+			    in vec3 normal;
+			    in vec2 uv;
+
+			    uniform mat4 modelViewMatrix;
+			    uniform mat4 viewMatrix;
+			    uniform mat4 projectionMatrix;
+			    uniform mat3 normalMatrix;
+
+                out vec2 vUv;
+                out mat4 vProjViewMatrix;
+                out mat4 vViewMatrix;
 
                 void main() {
                     vUv = uv;
@@ -36,26 +82,33 @@ export default class SSR {
             `,
 
             fragmentShader: `
+                precision highp float;
+			    precision highp int;
+
+                layout(location = 0) out vec4 out_SSRColor;
+			    layout(location = 1) out vec4 out_Uv;
+
                 uniform sampler2D uPosition;
                 uniform sampler2D uDepth;
                 uniform sampler2D uNormal;
                 uniform sampler2D uColor;
                 uniform sampler2D uTAA;
-                uniform sampler2D uOldSSR;
+                uniform sampler2D uOldSSRColor;
 
                 uniform vec3 uCameraPos;
                 uniform vec3 uCameraTarget;
                 uniform vec4 uRandoms;
 
-                varying vec2 vUv;
-                varying mat4 vProjViewMatrix;
-                varying mat4 vViewMatrix;
+                in vec2 vUv;
+                in mat4 vProjViewMatrix;
+                in mat4 vViewMatrix;
 
                 float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
                 float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
                 float rand(vec3 co){ return rand(co.xy+rand(co.z)); }
 
                 #define PI 3.14159
+                #define texture2D texture
 
                 float depthBufferAtP(vec3 p) {
                     vec4 projP = vProjViewMatrix * vec4(p, 1.0);
@@ -88,10 +141,10 @@ export default class SSR {
                 //     return wi
                 // }
                 
-                vec3 SampleBRDF(vec3 wo, vec3 norm) {
-                    float r0 = rand(uRandoms.x + wo);
-                    float r1 = rand(uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
-                    float roughness = 0.35;
+                vec3 SampleBRDF(vec3 wo, vec3 norm, int isample) {
+                    float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
+                    float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
+                    float roughness = 0.15;
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
@@ -160,20 +213,13 @@ export default class SSR {
                     if(dot(viewDir, norm) > 0.0) norm = -norm;
 
                     if(depth == 0.0) {
-                        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                        out_SSRColor = vec4(0.0, 0.0, 0.0, 1.0);
                         return;
                     }
 
 
-                    vec3 reflDir = normalize(reflect(viewDir, norm));
-                    reflDir = SampleBRDF(viewDir, norm);
+                  
 
-                    vec3 rd = reflDir;
-                    vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
-                 
-                    vec3 mult = vec3(1.0);
-                    float maxIntersectionDepthDistance = 1.5;
-                    mult *= max(dot(rd, norm), 0.0);
 
                     // float startingStep = 0.05;
                     // float stepMult = 1.25;
@@ -186,131 +232,149 @@ export default class SSR {
                     const int steps = 40;
                     const int binarySteps = 5;
 
-                    float step = startingStep;
+                    vec4 taaBuffer = texture2D(uTAA, vUv);
+                    vec2 oldUvs    = taaBuffer.xy;
+                    float accum    = min(taaBuffer.z, 10.0);
+                    vec3 oldSSR    = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
-                    vec3 p = ro;
-                    bool intersected = false;
-
-                    vec3 p1, p2;
-                    float lastRecordedDepthBuffThatIntersected;
-
-                    for(int i = 0; i < steps; i++) {
-                        vec3 initialP = p;
+                    vec4 sum = vec4(0.0);
+                    int samples = 1;
+                    for(int s = 0; s < samples; s++) {
+                        vec3 reflDir = normalize(reflect(viewDir, norm));
+                        reflDir = SampleBRDF(viewDir, norm, s);
                         
-                        // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
-                        float jittA = 0.5 + rand(p) * 0.5;
-                        if(!jitter) jittA = 1.0;
-                        float jittB = 1.0 - jittA;
-
-                        p += rd * step * jittA;
-
-                        vec4 projP = vProjViewMatrix * vec4(p, 1.0);
-                        vec2 pNdc = (projP / projP.w).xy;
-                        vec2 pUv  = pNdc * 0.5 + 0.5;
-                        float depthAtPosBuff = texture2D(uDepth, pUv).x;
-                        
-
-                        if(depthAtPosBuff == 0.0) {
-                            depthAtPosBuff = 9999999.0;
-                        } 
-
-                        // out of screen bounds condition
-                        if(pUv.x < 0.0 || pUv.x > 1.0 || pUv.y < 0.0 || pUv.y > 1.0) {
-                            // gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-                            // return;
-                            break;
-                        }
-
-                        float depthAtPointP = - (vViewMatrix * vec4(p, 1.0)).z;
-                        if(depthAtPointP > depthAtPosBuff) {
-                            // intersection found!
-                            p1 = initialP;
-                            p2 = p;
-                            lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
-                          
-                            break;
-                        }
-
-
-                        p += rd * step * jittB;
-                        step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
-                    }
-
-
-                    // stranamente mi trovo a dover spostare la binary search fuori dal primo loop, altrimenti
-                    // per qualche motivo esoterico la gpu inizia a prendere fuoco
-
-                    // ******** binary search start *********
-                    for(int j = 0; j < binarySteps; j++) {
-                        vec3 mid = (p1 + p2) * 0.5;
-                        float depthAtMid = - (vViewMatrix * vec4(mid, 1.0)).z;
-                        float depthAtPosBuff = depthBufferAtP(mid);
-                        if(depthAtMid > depthAtPosBuff) {
-                            p2 = (p1 + p2) * 0.5;
-                            // we need to save this value inside this if-statement otherwise if it was outside and above this
-                            // if statement, it would be possible that it's value would be very large (e.g. if p1 intersected the "background"
-                            // since in that case positionBufferAtP() returns viewDir * 99999999.0)
-                            // and if that value is very large, it can create artifacts when evaluating this condition:
-                            // ---> if(abs(distanceFromCameraAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) 
-                            // to be honest though, these artifacts only appear for largerish values of maxIntersectionDepthDistance
-                            lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
-                        } else {
-                            p1 = (p1 + p2) * 0.5;
-                        }
-                    }
-                    // ******** binary search end   *********
-
-                    // use p2 as the intersection point
-                    float depthAtP2 = - (vViewMatrix * vec4(p2, 1.0)).z;
-                    if(abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
-                        // intersection validated
-                        // get normal & material at p2
-                        vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
-                        vec2 p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
-                        vec3 color = texture2D(uColor, p2Uv).xyz;
-                        mult *= color;
-                        intersected = true;
-                    } else {
-                        // intersection is invalid
-                    }
-
-
-
-                    bool useTAA = true;
-                    vec3 newCol;
-                    vec4 fragCol = vec4(0.0);
-
-                    if(useTAA) {
-                        vec4 taaBuffer = texture2D(uTAA, vUv);
-                        vec2 oldUvs    = taaBuffer.xy;
-                        float accum    = min(taaBuffer.z, 10.0);
-                        vec3 oldSSR    = texture2D(uOldSSR, vUv + taaBuffer.xy).xyz;
+                        vec3 rd = reflDir;
+                        vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
+                     
+                        vec3 mult = vec3(1.0);
+                        float maxIntersectionDepthDistance = 1.5;
+                        mult *= max(dot(rd, norm), 0.0);
     
-                        float t = (accum * 0.1) * 0.95;
-                        newCol = mult * (1.0 - t) + oldSSR * t;
-
-                        
-                        if(intersected) {
-                            fragCol += vec4(newCol, 0.0);
-                        } else if(accum > 0.0) {
-                            fragCol += vec4(oldSSR * 0.75, 0.0);
+                        float step = startingStep;
+    
+                        vec3 p = ro;
+                        bool intersected = false;
+    
+                        vec3 p1, p2;
+                        float lastRecordedDepthBuffThatIntersected;
+    
+                        for(int i = 0; i < steps; i++) {
+                            vec3 initialP = p;
+                            
+                            // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
+                            float jittA = 0.5 + rand(p) * 0.5;
+                            if(!jitter) jittA = 1.0;
+                            float jittB = 1.0 - jittA;
+    
+                            p += rd * step * jittA;
+    
+                            vec4 projP = vProjViewMatrix * vec4(p, 1.0);
+                            vec2 pNdc = (projP / projP.w).xy;
+                            vec2 pUv  = pNdc * 0.5 + 0.5;
+                            float depthAtPosBuff = texture2D(uDepth, pUv).x;
+                            
+    
+                            if(depthAtPosBuff == 0.0) {
+                                depthAtPosBuff = 9999999.0;
+                            } 
+    
+                            // out of screen bounds condition
+                            if(pUv.x < 0.0 || pUv.x > 1.0 || pUv.y < 0.0 || pUv.y > 1.0) {
+                                // out_SSRColor = vec4(1.0, 0.0, 0.0, 1.0);
+                                // return;
+                                break;
+                            }
+    
+                            float depthAtPointP = - (vViewMatrix * vec4(p, 1.0)).z;
+                            if(depthAtPointP > depthAtPosBuff) {
+                                // intersection found!
+                                p1 = initialP;
+                                p2 = p;
+                                lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
+                              
+                                break;
+                            }
+    
+    
+                            p += rd * step * jittB;
+                            step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
                         }
-
-                    } else {
-                        newCol = mult;
+    
+    
+                        // stranamente mi trovo a dover spostare la binary search fuori dal primo loop, altrimenti
+                        // per qualche motivo esoterico la gpu inizia a prendere fuoco
+    
+                        // ******** binary search start *********
+                        for(int j = 0; j < binarySteps; j++) {
+                            vec3 mid = (p1 + p2) * 0.5;
+                            float depthAtMid = - (vViewMatrix * vec4(mid, 1.0)).z;
+                            float depthAtPosBuff = depthBufferAtP(mid);
+                            if(depthAtMid > depthAtPosBuff) {
+                                p2 = (p1 + p2) * 0.5;
+                                // we need to save this value inside this if-statement otherwise if it was outside and above this
+                                // if statement, it would be possible that it's value would be very large (e.g. if p1 intersected the "background"
+                                // since in that case positionBufferAtP() returns viewDir * 99999999.0)
+                                // and if that value is very large, it can create artifacts when evaluating this condition:
+                                // ---> if(abs(distanceFromCameraAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) 
+                                // to be honest though, these artifacts only appear for largerish values of maxIntersectionDepthDistance
+                                lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
+                            } else {
+                                p1 = (p1 + p2) * 0.5;
+                            }
+                        }
+                        // ******** binary search end   *********
+    
+                        // use p2 as the intersection point
+                        float depthAtP2 = - (vViewMatrix * vec4(p2, 1.0)).z;
+                        vec2 p2Uv;
+                        if(abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
+                            // intersection validated
+                            // get normal & material at p2
+                            vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
+                            p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
+                            vec3 color = texture2D(uColor, p2Uv).xyz;
+                            mult *= color;
+                            intersected = true;
+                        } else {
+                            // intersection is invalid
+                            mult = vec3(0.0);
+                        }
                     
-                        if(intersected) {
-                            fragCol += vec4(newCol, 0.0);
+
+                        bool useTAA = true;
+                        vec3 newCol;
+                        vec4 fragCol = vec4(0.0);
+    
+                        if(useTAA) {
+                            float t = (accum * 0.1) * 0.95;
+                            newCol = mult * (1.0 - t) + oldSSR * t;
+                            
+                            if(intersected) {
+                                sum += vec4(newCol, 0.0);
+                            } else if(accum > 0.0) {
+                                sum += vec4(oldSSR * 0.75, 0.0);
+                            }
+    
+                        } else {
+                            newCol = mult;
+                        
+                            if(intersected) {
+                                sum += vec4(newCol, 0.0);
+                            }
                         }
                     }
 
-                    gl_FragColor = fragCol;
+                    sum /= float(samples);
+
+                    out_SSRColor = vec4(sum.xyz, 1.0);
+                    out_Uv       = vec4(0.0, 0.0, 0.0, 1.0);
                 }
             `,
-
+            glslVersion: THREE.GLSL3,
             depthTest:  false,
             depthWrite: false,
         });
+
 
         this.applySSRMaterial = new THREE.ShaderMaterial({
             uniforms: {
@@ -362,7 +426,7 @@ export default class SSR {
         this.mesh.material = this.material;
         this.material.uniforms.uCameraPos.value = this.sceneCamera.position;
         this.material.uniforms.uCameraTarget.value = this.controls.target;
-        this.material.uniforms.uOldSSR.value = this.SSRRT.read;
+        this.material.uniforms.uOldSSRColor.value = this.SSRRT.read.texture[0];
         this.material.uniforms.uTAA.value = TAART;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.renderer.render(this.scene, this.sceneCamera);
@@ -370,11 +434,11 @@ export default class SSR {
         this.renderer.setRenderTarget(null);
     }
 
-    apply(SSRRenderTarget, renderTargetDest) {
+    apply(renderTargetDest) {
         this.renderer.setRenderTarget(renderTargetDest);
 
         this.mesh.material = this.applySSRMaterial;
-        this.applySSRMaterial.uniforms.uSSR.value = SSRRenderTarget.texture;
+        this.applySSRMaterial.uniforms.uSSR.value = this.SSRRT.read.texture[0];
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);

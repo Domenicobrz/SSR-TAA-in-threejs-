@@ -62,6 +62,12 @@ export default class TAA {
                 float oldAccum  = texture2D(uLastMomentMove, olduv).z;
                 float newAccum  = oldAccum + 1.0;
 
+
+                // I think this reprojection shader has a problem, the "old normal" could
+                // be different because e.g. the model was rotated, so the pixel might be valid,
+                // but a previous rotation could have changed the normal enough so that the test fails
+
+
                 if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
                 // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
 
