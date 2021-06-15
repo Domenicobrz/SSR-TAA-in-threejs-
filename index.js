@@ -143,7 +143,8 @@ function animate() {
     renderer.shadowMap.needsUpdate = false;
 
     SSRProgram.compute(TAAProgram.momentMoveRT.write);
-    SSRProgram.apply(SSRProgram.SSRRT.write, null);
+    // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+    SSRProgram.apply(null);
 
 
     // // SSRProgram.compute(ssrRT);
