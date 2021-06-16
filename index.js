@@ -113,6 +113,8 @@ window.addEventListener("keyup", (e) => {
     if(e.key == "l") ldown = false;
 });
 
+
+let count = 0;
 function animate() {
     controls.update();
 
@@ -142,9 +144,15 @@ function animate() {
     renderer.render(scene, camera);
     renderer.shadowMap.needsUpdate = false;
 
+
+    count++;
+    if(count == 100) console.time();
+
     SSRProgram.compute(TAAProgram.momentMoveRT.write);
     // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
     SSRProgram.apply(null);
+
+    if(count == 100) console.time();
 
 
     // // SSRProgram.compute(ssrRT);

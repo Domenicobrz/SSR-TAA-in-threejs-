@@ -12,8 +12,8 @@ export default class SSR {
         let rts = [];
         for(let i = 0; i < 2; i++) {
             let renderTarget = new THREE.WebGLMultipleRenderTargets(
-                sizeVector.x * 0.5,
-                sizeVector.y * 0.5,
+                sizeVector.x * 1,
+                sizeVector.y * 1,
                 2
             );
             
@@ -358,15 +358,20 @@ export default class SSR {
                             //     t = clamp(t, 0.0, 1.0);
                             // }
 
-                            float del = 0.999995;
-                            float idel = 1.0 - del;
-                            if(specDot < del) {
-                                // t = (specDot - del) / idel;
-                                // t = clamp(t, 0.0, 1.0);
 
-                                mult *= 0.9;
-                                t *= 0.5;
-                            }
+                            // float del = 0.999995;
+                            // float idel = 1.0 - del;
+                            // if(specDot < del) {
+                            //     // t = (specDot - del) / idel;
+                            //     // t = clamp(t, 0.0, 1.0);
+
+                            //     mult *= 0.9;
+                            //     t *= 0.5;
+                            // }
+
+                            // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
+                            float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
+                            t *= 1.0 - dist;
 
 
                             vec3 oldSSR    = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
