@@ -12,8 +12,8 @@ export default class SSR {
         let rts = [];
         for(let i = 0; i < 2; i++) {
             let renderTarget = new THREE.WebGLMultipleRenderTargets(
-                sizeVector.x * 1,
-                sizeVector.y * 1,
+                sizeVector.x * 0.5,
+                sizeVector.y * 0.5,
                 2
             );
             
@@ -48,7 +48,8 @@ export default class SSR {
         this.material = new THREE.RawShaderMaterial({
             uniforms: {
                 uTAA:          { type: "t", value: null },
-                uOldSSRColor:       { type: "t", value: null },
+                uOldSSRColor:  { type: "t", value: null },
+                uOldSSRUv:     { type: "t", value: null },
                 uPosition:     { type: "t", value: positionRT.texture },
                 uDepth:        { type: "t", value: depthRT.texture },
                 uNormal:       { type: "t", value: normalRT.texture },
@@ -94,6 +95,7 @@ export default class SSR {
                 uniform sampler2D uColor;
                 uniform sampler2D uTAA;
                 uniform sampler2D uOldSSRColor;
+                uniform sampler2D uOldSSRUv;
 
                 uniform vec3 uCameraPos;
                 uniform vec3 uCameraTarget;
@@ -235,13 +237,13 @@ export default class SSR {
                     vec4 taaBuffer = texture2D(uTAA, vUv);
                     vec2 oldUvs    = taaBuffer.xy;
                     float accum    = min(taaBuffer.z, 10.0);
-                    vec3 oldSSR    = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-
+                   
+                    vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
-                    int samples = 1;
+
+                    int samples = 5;
                     for(int s = 0; s < samples; s++) {
-                        vec3 reflDir = normalize(reflect(viewDir, norm));
-                        reflDir = SampleBRDF(viewDir, norm, s);
+                        vec3 reflDir = SampleBRDF(viewDir, norm, s);
                         
                         vec3 rd = reflDir;
                         vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
@@ -347,8 +349,29 @@ export default class SSR {
     
                         if(useTAA) {
                             float t = (accum * 0.1) * 0.95;
-                            newCol = mult * (1.0 - t) + oldSSR * t;
+
+                            vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
+                            float specDot = dot(oldSpecularDir, specularReflectionDir);
                             
+                            // if(specDot < 0.9998) {
+                            //     t = (specDot - 0.9998) / 0.0002;
+                            //     t = clamp(t, 0.0, 1.0);
+                            // }
+
+                            float del = 0.999995;
+                            float idel = 1.0 - del;
+                            if(specDot < del) {
+                                // t = (specDot - del) / idel;
+                                // t = clamp(t, 0.0, 1.0);
+
+                                mult *= 0.9;
+                                t *= 0.5;
+                            }
+
+
+                            vec3 oldSSR    = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            newCol = mult * (1.0 - t) + oldSSR * t;
+
                             if(intersected) {
                                 sum += vec4(newCol, 0.0);
                             } else if(accum > 0.0) {
@@ -367,7 +390,7 @@ export default class SSR {
                     sum /= float(samples);
 
                     out_SSRColor = vec4(sum.xyz, 1.0);
-                    out_Uv       = vec4(0.0, 0.0, 0.0, 1.0);
+                    out_Uv       = vec4(specularReflectionDir, 1.0);
                 }
             `,
             glslVersion: THREE.GLSL3,
@@ -427,6 +450,7 @@ export default class SSR {
         this.material.uniforms.uCameraPos.value = this.sceneCamera.position;
         this.material.uniforms.uCameraTarget.value = this.controls.target;
         this.material.uniforms.uOldSSRColor.value = this.SSRRT.read.texture[0];
+        this.material.uniforms.uOldSSRUv.value    = this.SSRRT.read.texture[1];
         this.material.uniforms.uTAA.value = TAART;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.renderer.render(this.scene, this.sceneCamera);
