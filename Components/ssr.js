@@ -358,13 +358,11 @@ export default class SSR {
                             //     t = clamp(t, 0.0, 1.0);
                             // }
 
-
                             // float del = 0.999995;
                             // float idel = 1.0 - del;
                             // if(specDot < del) {
                             //     // t = (specDot - del) / idel;
                             //     // t = clamp(t, 0.0, 1.0);
-
                             //     mult *= 0.9;
                             //     t *= 0.5;
                             // }
@@ -373,8 +371,7 @@ export default class SSR {
                             float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
                             t *= 1.0 - dist;
 
-
-                            vec3 oldSSR    = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
                             newCol = mult * (1.0 - t) + oldSSR * t;
 
                             if(intersected) {
@@ -382,7 +379,6 @@ export default class SSR {
                             } else if(accum > 0.0) {
                                 sum += vec4(oldSSR * 0.75, 0.0);
                             }
-    
                         } else {
                             newCol = mult;
                         
@@ -467,7 +463,7 @@ export default class SSR {
         this.renderer.setRenderTarget(renderTargetDest);
 
         this.mesh.material = this.applySSRMaterial;
-        this.applySSRMaterial.uniforms.uSSR.value = this.SSRRT.read.texture[0];
+        this.applySSRMaterial.uniforms.uSSR.value = this.SSRRT.write.texture[0];
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);

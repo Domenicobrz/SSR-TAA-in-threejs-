@@ -116,7 +116,6 @@ window.addEventListener("keyup", (e) => {
 
 let count = 0;
 function animate() {
-    controls.update();
 
     let delta = clock.getDelta();
     if(kdown) fov -= 0.15;
@@ -124,6 +123,9 @@ function animate() {
 
     camera.fov = fov;
     camera.updateProjectionMatrix();
+
+    // update controls after moving / changing the camera
+    controls.update();
 
 
     // TAA computation happens before updating normals and position RT
