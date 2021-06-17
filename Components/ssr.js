@@ -7,8 +7,8 @@ export default class SSR {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        let roughness    = "0.35";
-        let postReflMult = "5.0";
+        let roughness    = "0.15";
+        let postReflMult = "1.0";
         let samples      = "1";
 
         let rts = [];
