@@ -188,6 +188,16 @@ export default class SSR {
                 //     return (D * wm.Dot(wg)) / (4 * wo.Dot(wm))
                 // }
 
+                float samplePDF(vec3 wi, vec3 wo, vec3 norm, float roughness) {
+                    vec3 wg = norm;
+                    vec3 wm = (wo + wi) * 0.5;
+                    float a = roughness * roughness;
+                    float a2 = a * a;
+                    float cosTheta = dot(wg, wm);
+                    float exp = (a2 - 1.0) * cosTheta * cosTheta + 1.0;
+                    float D = a2 / (PI * exp * exp);
+                    return (D * dot(wm, wg)) / (4.0 * dot(wo,wm));
+                }
 
                 // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
                 // func (m Microfacet) Eval(wi, wo geom.Direction) rgb.Energy {
@@ -202,6 +212,60 @@ export default class SSR {
                 //     r := (F * D * G) / (4 * wg.Dot(wi) * wg.Dot(wo))
                 //     return m.F0.Scaled(r)
                 // }
+
+                vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+                    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+                }
+
+                float DistributionGGX(vec3 N, vec3 H, float roughness) {
+                    float a      = roughness*roughness;
+                    float a2     = a*a;
+                    float NdotH  = max(dot(N, H), 0.0);
+                    float NdotH2 = NdotH*NdotH;
+                
+                    float num   = a2;
+                    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+                    denom = PI * denom * denom;
+                
+                    return num / denom;
+                }
+
+                float GeometrySchlickGGX(float NdotV, float roughness) {
+                    float r = (roughness + 1.0);
+                    float k = (r*r) / 8.0;
+                
+                    float num   = NdotV;
+                    float denom = NdotV * (1.0 - k) + k;
+                
+                    return num / denom;
+                }
+                
+                float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+                    float NdotV = max(dot(N, V), 0.0);
+                    float NdotL = max(dot(N, L), 0.0);
+                    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+                    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+                
+                    return ggx1 * ggx2;
+                }
+
+                // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+                vec3 EvalBRDF(vec3 wi, vec3 wo, vec3 n, float roughness, vec3 F0) {
+                    vec3 wm = (wo + wi) * 0.5;
+                    if (/* (wi.y <= 0.0) || */ dot(wi, wm) <= 0.0) {
+                        return vec3(0.0);
+                    }
+
+                    vec3 F    = fresnelSchlick(max(dot(wm, wo), 0.0), F0);
+                    float NDF = DistributionGGX(n, wm, roughness); 
+                    float G   = GeometrySmith(n, wo, wi, roughness);   
+
+                    vec3 numerator    = NDF * G * F;
+                    float denominator = 4.0 * max(dot(n, wo), 0.0) * max(dot(n, wi), 0.0);
+                    vec3 specular     = numerator / max(denominator, 0.001);  
+
+                    return specular;
+                }
 
                 void main() {
                     vec3 pos    = texture2D(uPosition, vUv).xyz;
@@ -338,6 +402,19 @@ export default class SSR {
                             p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
                             vec3 color = texture2D(uColor, p2Uv).xyz;
                             mult *= color;
+
+                            
+                            // vec3 F0 = vec3(0.04);
+                            vec3 F0 = vec3(1.0);
+                            
+                            // apply pdf and brdf
+                            float roughness = ${roughness};
+                            vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
+                            float pdf = samplePDF(rd, -viewDir, norm, roughness);
+
+                            mult *= brdf;
+                            mult /= max(pdf, 0.00000001);
+
                             intersected = true;
                         } else {
                             // intersection is invalid
@@ -354,20 +431,6 @@ export default class SSR {
 
                             vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
                             float specDot = dot(oldSpecularDir, specularReflectionDir);
-                            
-                            // if(specDot < 0.9998) {
-                            //     t = (specDot - 0.9998) / 0.0002;
-                            //     t = clamp(t, 0.0, 1.0);
-                            // }
-
-                            // float del = 0.999995;
-                            // float idel = 1.0 - del;
-                            // if(specDot < del) {
-                            //     // t = (specDot - del) / idel;
-                            //     // t = clamp(t, 0.0, 1.0);
-                            //     mult *= 0.9;
-                            //     t *= 0.5;
-                            // }
 
                             // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
                             float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
