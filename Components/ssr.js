@@ -7,8 +7,8 @@ export default class SSR {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        let roughness    = "0.15";
-        let postReflMult = "1.0";
+        let roughness    = "0.35";
+        let postReflMult = "5.0";
         let samples      = "1";
 
         let rts = [];
@@ -423,11 +423,11 @@ export default class SSR {
                     
 
                         bool useTAA = true;
-                        vec3 newCol;
                         vec4 fragCol = vec4(0.0);
     
                         if(useTAA) {
                             float t = (accum * 0.1) * 0.95;
+                            // t = 0.0;
 
                             vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
                             float specDot = dot(oldSpecularDir, specularReflectionDir);
@@ -437,18 +437,20 @@ export default class SSR {
                             t *= 1.0 - dist;
 
                             vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-                            newCol = mult * (1.0 - t) + oldSSR * t;
 
                             if(intersected) {
+                                vec3 newCol = mult * (1.0 - t) + oldSSR * t;
                                 sum += vec4(newCol, 0.0);
                             } else if(accum > 0.0) {
-                                sum += vec4(oldSSR * 0.75, 0.0);
+                                // this one makes a cool effect too
+                                // sum += vec4(oldSSR, 0.0);
+
+                                vec3 envColor = vec3(0.0) * (1.0 - t) + oldSSR * t; 
+                                sum += vec4(envColor, 0.0);
                             }
                         } else {
-                            newCol = mult;
-                        
                             if(intersected) {
-                                sum += vec4(newCol, 0.0);
+                                sum += vec4(mult, 0.0);
                             }
                         }
                     }
