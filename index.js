@@ -7,6 +7,7 @@ import BlitNormals from "./Components/blitNormals";
 import BlitPosition from "./Components/blitPosition";
 import SSR from "./Components/ssr";
 import TAA from "./Components/taa";
+import Atrous from "./Components/atrous";
 
 let scene = new THREE.Scene();
 
@@ -40,7 +41,9 @@ ground.position.set(0, -5, 0);
 ground.castShadow = true; 
 ground.receiveShadow = true; 
 
-let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3,7,3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
+let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
+// let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
+let box = new THREE.Mesh(boxGeometry, new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
 box.castShadow = true; 
 box.receiveShadow = true; 
 scene.add(box);
@@ -96,6 +99,7 @@ let colorRT    = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilte
 
 let TAAProgram          = new TAA(renderer, scene, camera, normalsRT, positionRT);
 let SSRProgram          = new SSR(renderer, camera, controls, normalsRT, positionRT, depthRT, colorRT);
+let AtrousProgram       = new Atrous(renderer, normalsRT, positionRT, SSRProgram.SSRRT);
 let blitProgram         = new Blit(renderer);
 let blitNormalsProgram  = new BlitNormals(renderer, scene, camera);
 let blitPositionProgram = new BlitPosition(renderer, scene, camera);
@@ -152,7 +156,10 @@ function animate() {
 
     SSRProgram.compute(TAAProgram.momentMoveRT.write);
     // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
-    SSRProgram.apply(null);
+
+    AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
+
+    SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
     if(count == 100) console.time();
 

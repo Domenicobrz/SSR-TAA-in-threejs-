@@ -7,7 +7,9 @@ export default class SSR {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        // this.SSRRT = DoubleRT(sizeVector.x, sizeVector.y, THREE.LinearFilter);
+        let roughness    = "0.15";
+        let postReflMult = "1.0";
+        let samples      = "1";
 
         let rts = [];
         for(let i = 0; i < 2; i++) {
@@ -146,7 +148,7 @@ export default class SSR {
                 vec3 SampleBRDF(vec3 wo, vec3 norm, int isample) {
                     float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
                     float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
-                    float roughness = 0.15;
+                    float roughness = ${roughness};
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
@@ -241,7 +243,7 @@ export default class SSR {
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
 
-                    int samples = 5;
+                    int samples = ${samples};
                     for(int s = 0; s < samples; s++) {
                         vec3 reflDir = SampleBRDF(viewDir, norm, s);
                         
@@ -425,7 +427,7 @@ export default class SSR {
                     vec3 ssr = texture2D(uSSR, vUv).xyz;
                     vec3 col = texture2D(uColor, vUv).xyz;
 
-                    gl_FragColor = vec4(col + ssr, 1.0);
+                    gl_FragColor = vec4(col + ssr * ${postReflMult}, 1.0);
                 }
             `,
 
@@ -459,11 +461,11 @@ export default class SSR {
         this.renderer.setRenderTarget(null);
     }
 
-    apply(renderTargetDest) {
+    apply(ssrTexture, renderTargetDest) {
         this.renderer.setRenderTarget(renderTargetDest);
 
         this.mesh.material = this.applySSRMaterial;
-        this.applySSRMaterial.uniforms.uSSR.value = this.SSRRT.write.texture[0];
+        this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);

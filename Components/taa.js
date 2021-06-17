@@ -3,10 +3,7 @@ import DoubleRT from "./doubleRT";
 
 export default class TAA {
     constructor(renderer, scene, camera, normalRT, positionRT) {
-        let sizeVector = new THREE.Vector2();
-        renderer.getSize(sizeVector);
-      
-        this.momentMoveRT = DoubleRT(sizeVector.x, sizeVector.y, THREE.NearestFilter);
+        this.momentMoveRT = DoubleRT(positionRT.width, positionRT.height, THREE.NearestFilter);
         
         this.momentBufferMaterial = new THREE.ShaderMaterial({
             uniforms: {

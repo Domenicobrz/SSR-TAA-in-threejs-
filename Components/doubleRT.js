@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 export default function DoubleRT(w, h, filtering, multisample) {
-    let rt1 = new (multisample ? THREE.WebGLRenderTarget : THREE.WebGLMultisampleRenderTarget)(w, h, {
+    let rt1 = new (multisample ? THREE.WebGLMultisampleRenderTarget : THREE.WebGLRenderTarget)(w, h, {
         type:          THREE.FloatType,
         minFilter:     filtering || THREE.LinearFilter,
         magFilter:     filtering || THREE.LinearFilter,
@@ -12,7 +12,7 @@ export default function DoubleRT(w, h, filtering, multisample) {
         anisotropy:    1,
     });
 
-    let rt2 = new (multisample ? THREE.WebGLRenderTarget : THREE.WebGLMultisampleRenderTarget)(w, h, {
+    let rt2 = new (multisample ? THREE.WebGLMultisampleRenderTarget : THREE.WebGLRenderTarget)(w, h, {
         type:          THREE.FloatType,
         minFilter:     filtering || THREE.LinearFilter,
         magFilter:     filtering || THREE.LinearFilter,
