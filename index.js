@@ -88,7 +88,7 @@ light1.position.set(-16, 17, 5);
 
 let light2 = new THREE.PointLight(0xffbb88, 0.5, 100, 1);
 light2.castShadow = true;
-light2.position.set(16, 17, 35);
+light2.position.set(16, 17, 5);
 
 scene.add(ground, light1, light2);
 
