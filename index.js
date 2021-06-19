@@ -41,6 +41,8 @@ let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.
 ground.position.set(0, -5, 0);
 ground.castShadow = true; 
 ground.receiveShadow = true; 
+ground.material.roughness = 0.15;
+ground.material.metalness = 0;
 
 let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
 // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
@@ -60,6 +62,7 @@ for(let i = 0; i < 9; i++) {
     box.receiveShadow = true; 
     box.position.set(x, +y * 0.5 - 4, z);
     box.material.roughness = 0.15;
+    box.material.metalness = 0;
 
     scene.add(box);
 }
@@ -98,7 +101,12 @@ let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
 
 let SSRBuffersProgram   = new SSRBuffers(innerWidth, innerHeight);
 let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position);
-let SSRProgram          = new SSR(renderer, camera, controls, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, colorRT);
+let SSRProgram          = new SSR(renderer, camera, controls, 
+    SSRBuffersProgram.GTextures.normal, 
+    SSRBuffersProgram.GTextures.position, 
+    SSRBuffersProgram.GTextures.albedo, 
+    SSRBuffersProgram.GTextures.material, 
+    colorRT);
 let AtrousProgram       = new Atrous(renderer, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, SSRProgram.SSRRT);
 let blitProgram         = new Blit(renderer);
 

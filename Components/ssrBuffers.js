@@ -60,14 +60,11 @@ export default class SSRBuffers {
                 void main() {
                     // world space normal
                     vNormal = (transpose(inverse(modelMatrix)) * vec4(normal, 1.0)).xyz;  
-
                     // view space normal
                     // vNormal = normalMatrix * normal;
                     
                     vPosition = (modelMatrix * vec4(position, 1.0)).xyz;  
-                   
                     vDepth = - (modelViewMatrix * vec4(position, 1.0)).z;  
-
                     vUv = uv;
 
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);    

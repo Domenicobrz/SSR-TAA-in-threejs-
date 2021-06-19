@@ -3,12 +3,11 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class SSR {
-    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, colorRT) {
+    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        let roughness    = "0.15";
-        let postReflMult = "1.0";
+        let postReflMult = "3.0";
         let samples      = "1";
 
         let rts = [];
@@ -54,6 +53,8 @@ export default class SSR {
                 uOldSSRUv:     { type: "t", value: null },
                 uPosition:     { type: "t", value: positionTexture },
                 uNormal:       { type: "t", value: normalTexture },
+                uAlbedo:       { type: "t", value: albedoTexture },
+                uMaterial:     { type: "t", value: materialTexture },
                 uColor:        { type: "t", value: colorRT.texture },
                 uCameraPos:    { value: new THREE.Vector3(0,0,0) },
                 uCameraTarget: { value: new THREE.Vector3(0,0,0) },
@@ -92,6 +93,8 @@ export default class SSR {
 
                 uniform sampler2D uPosition;
                 uniform sampler2D uNormal;
+                uniform sampler2D uAlbedo;
+                uniform sampler2D uMaterial;
                 uniform sampler2D uColor;
                 uniform sampler2D uTAA;
                 uniform sampler2D uOldSSRColor;
@@ -143,10 +146,9 @@ export default class SSR {
                 //     return wi
                 // }
                 
-                vec3 SampleBRDF(vec3 wo, vec3 norm, int isample) {
+                vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness) {
                     float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
                     float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
-                    float roughness = ${roughness};
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
@@ -267,10 +269,12 @@ export default class SSR {
 
                 void main() {
                     vec4 posTexel = texture2D(uPosition, vUv);
-                    vec3 pos    = posTexel.xyz;
-                    float depth = posTexel.w;
-                    vec3 norm   = texture2D(uNormal, vUv).xyz;
-                    vec4 col    = texture2D(uColor, vUv);
+                    vec3 pos      = posTexel.xyz;
+                    float depth   = posTexel.w;
+                    vec3 norm     = texture2D(uNormal, vUv).xyz;
+                    vec4 col      = texture2D(uColor, vUv);
+                    vec4 albedo   = texture2D(uAlbedo, vUv);
+                    vec4 material = texture2D(uMaterial, vUv);
 
                     vec3 viewDir = normalize(pos - uCameraPos);
                    
@@ -285,7 +289,8 @@ export default class SSR {
                     }
 
 
-                  
+                    float roughness = material.x;
+                    float metalness = material.y;
 
 
                     // float startingStep = 0.05;
@@ -308,7 +313,7 @@ export default class SSR {
 
                     int samples = ${samples};
                     for(int s = 0; s < samples; s++) {
-                        vec3 reflDir = SampleBRDF(viewDir, norm, s);
+                        vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness);
                         
                         vec3 rd = reflDir;
                         vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
@@ -402,17 +407,15 @@ export default class SSR {
                             vec3 color = texture2D(uColor, p2Uv).xyz;
                             mult *= color;
 
-                            
-                            // vec3 F0 = vec3(0.04);
-                            vec3 F0 = vec3(1.0);
+                            vec3 F0 = vec3(0.04);
+                            F0 = mix(F0, albedo.xyz, metalness);
                             
                             // apply pdf and brdf
-                            float roughness = ${roughness};
                             vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
                             float pdf = samplePDF(rd, -viewDir, norm, roughness);
 
                             mult *= brdf;
-                            mult /= max(pdf, 0.00000001);
+                            mult /= max(pdf, 0.000000000000000001);
 
                             intersected = true;
                         } else {
@@ -468,8 +471,13 @@ export default class SSR {
 
         this.applySSRMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                uSSR: { type: "t", value: null },
-                uColor: { type: "t", value: colorRT.texture },
+                uSSR:       { type: "t", value: null },
+                uColor:     { type: "t", value: colorRT.texture },
+                uAlbedo:    { type: "t", value: albedoTexture },
+                uMaterial:  { type: "t", value: materialTexture },
+                uPosition:  { type: "t", value: positionTexture },
+                uNormal:    { type: "t", value: normalTexture },
+                uCameraPos: { value: new THREE.Vector3(0,0,0) },
             },
             
             vertexShader: `
@@ -484,14 +492,42 @@ export default class SSR {
             fragmentShader: `
                 uniform sampler2D uSSR;
                 uniform sampler2D uColor;
+                uniform sampler2D uMaterial;
+                uniform sampler2D uAlbedo;
+                uniform sampler2D uPosition;
+                uniform sampler2D uNormal;
+
+                uniform vec3 uCameraPos;
 
                 varying vec2 vUv;
 
-                void main() {
-                    vec3 ssr = texture2D(uSSR, vUv).xyz;
-                    vec3 col = texture2D(uColor, vUv).xyz;
+                vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+                    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+                }
 
-                    gl_FragColor = vec4(col + ssr * ${postReflMult}, 1.0);
+                void main() {
+                    vec3 ssr      = texture2D(uSSR, vUv).xyz;
+                    vec3 col      = texture2D(uColor, vUv).xyz;
+                    vec3 material = texture2D(uMaterial, vUv).xyz;
+                    vec3 albedo   = texture2D(uAlbedo, vUv).xyz;
+                    vec3 pos      = texture2D(uPosition, vUv).xyz;
+                    vec3 norm     = normalize(texture2D(uNormal, vUv).xyz);
+
+                    vec3 viewDir = normalize(pos - uCameraPos);
+
+                    float metalness = material.y;
+                    // vec3 F0 = vec3(0.04);
+                    // F0 = mix(F0, albedo.xyz, metalness);
+
+                    // vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
+
+                    // vec3 kS = F;
+                    // vec3 kD = 1.0 - kS;
+
+                    vec3 kD = vec3(1.0);
+                    kD *= 1.0 - metalness;
+
+                    gl_FragColor = vec4(col * kD + ssr * ${postReflMult}, 1.0);
                 }
             `,
 
@@ -514,11 +550,11 @@ export default class SSR {
         this.renderer.setRenderTarget(this.SSRRT.write);
 
         this.mesh.material = this.material;
-        this.material.uniforms.uCameraPos.value = this.sceneCamera.position;
+        this.material.uniforms.uCameraPos.value    = this.sceneCamera.position;
         this.material.uniforms.uCameraTarget.value = this.controls.target;
-        this.material.uniforms.uOldSSRColor.value = this.SSRRT.read.texture[0];
-        this.material.uniforms.uOldSSRUv.value    = this.SSRRT.read.texture[1];
-        this.material.uniforms.uTAA.value = TAART;
+        this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
+        this.material.uniforms.uOldSSRUv.value     = this.SSRRT.read.texture[1];
+        this.material.uniforms.uTAA.value     = TAART;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.renderer.render(this.scene, this.sceneCamera);
 
@@ -530,6 +566,7 @@ export default class SSR {
 
         this.mesh.material = this.applySSRMaterial;
         this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
+        this.applySSRMaterial.uniforms.uCameraPos.value = this.sceneCamera.position;
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);
