@@ -115,7 +115,6 @@ window.addEventListener("keyup", (e) => {
 });
 
 
-let count = 0;
 function animate() {
 
     let delta = clock.getDelta();
@@ -132,7 +131,7 @@ function animate() {
 
     // TAA computation happens before updating normals and position RT
     TAAProgram.computeMoment();
-    blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
+    // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
 
     SSRBuffersProgram.compute(renderer, scene, camera);
     // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
@@ -142,14 +141,9 @@ function animate() {
     renderer.render(scene, camera);
     renderer.shadowMap.needsUpdate = false;
 
-    count++;
-    if(count == 100) console.time();
-
     SSRProgram.compute(TAAProgram.momentMoveRT.write);
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
-
-    if(count == 100) console.time();
 
 
 
