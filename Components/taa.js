@@ -2,14 +2,14 @@ import * as THREE from "three";
 import DoubleRT from "./doubleRT";
 
 export default class TAA {
-    constructor(renderer, scene, camera, normalRT, positionRT) {
-        this.momentMoveRT = DoubleRT(positionRT.width, positionRT.height, THREE.NearestFilter);
+    constructor(renderer, scene, camera, normalTexture, positionTexture) {
+        this.momentMoveRT = DoubleRT(positionTexture.image.width, positionTexture.image.height, THREE.NearestFilter);
         
         this.momentBufferMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uOldModelViewMatrix: { value: new THREE.Matrix4() },
-                uPosition:           { type: "t", value: positionRT.texture },
-                uNormal:             { type: "t", value: normalRT.texture },
+                uPosition:           { type: "t", value: positionTexture },
+                uNormal:             { type: "t", value: normalTexture },
                 uLastMomentMove:     { type: "t", value: null },
             },
 

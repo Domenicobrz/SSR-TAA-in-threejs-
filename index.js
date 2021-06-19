@@ -8,6 +8,7 @@ import BlitPosition from "./Components/blitPosition";
 import SSR from "./Components/ssr";
 import TAA from "./Components/taa";
 import Atrous from "./Components/atrous";
+import SSRBuffers from "./Components/ssrBuffers";
 
 let scene = new THREE.Scene();
 
@@ -58,6 +59,7 @@ for(let i = 0; i < 9; i++) {
     box.castShadow = true; 
     box.receiveShadow = true; 
     box.position.set(x, +y * 0.5 - 4, z);
+    box.material.roughness = 0.15;
 
     scene.add(box);
 }
@@ -92,18 +94,13 @@ light2.position.set(16, 17, 5);
 
 scene.add(ground, light1, light2);
 
-let normalsRT  = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.FloatType });
-let positionRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.FloatType });
-let depthRT    = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.FloatType, format: THREE.RedFormat });
-let colorRT    = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
 
-let TAAProgram          = new TAA(renderer, scene, camera, normalsRT, positionRT);
-let SSRProgram          = new SSR(renderer, camera, controls, normalsRT, positionRT, depthRT, colorRT);
-let AtrousProgram       = new Atrous(renderer, normalsRT, positionRT, SSRProgram.SSRRT);
+let SSRBuffersProgram   = new SSRBuffers(innerWidth, innerHeight);
+let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position);
+let SSRProgram          = new SSR(renderer, camera, controls, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, colorRT);
+let AtrousProgram       = new Atrous(renderer, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, SSRProgram.SSRRT);
 let blitProgram         = new Blit(renderer);
-let blitNormalsProgram  = new BlitNormals(renderer, scene, camera);
-let blitPositionProgram = new BlitPosition(renderer, scene, camera);
-let blitDepthProgram    = new BlitDepth(renderer, scene, camera);
 
 let fov = 40;
 let kdown = false;
@@ -132,44 +129,29 @@ function animate() {
     controls.update();
 
 
+
     // TAA computation happens before updating normals and position RT
     TAAProgram.computeMoment();
-    // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
+    blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
 
-    blitNormalsProgram.blitNormals(normalsRT);
-    // blitProgram.blit(normalsRT.texture, null);
-
-    blitPositionProgram.blitPosition(positionRT);
-    // // blitProgram.blit(positionRT.texture, null);
-
-    blitDepthProgram.blitDepth(depthRT);
-    // blitProgram.blit(depthRT.texture, null);
+    SSRBuffersProgram.compute(renderer, scene, camera);
+    // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
 
     renderer.setRenderTarget(colorRT);
     renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, camera);
     renderer.shadowMap.needsUpdate = false;
 
-
     count++;
     if(count == 100) console.time();
 
     SSRProgram.compute(TAAProgram.momentMoveRT.write);
-    // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
-
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
-
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
     if(count == 100) console.time();
 
 
-    // // SSRProgram.compute(ssrRT);
-    // // blitProgram.blit(ssrRT.texture, null);
-    
-    // // renderer.setRenderTarget(null);
-    // // renderer.shadowMap.needsUpdate = true;
-    // // renderer.render(scene, camera);
 
     requestAnimationFrame(animate);
 }

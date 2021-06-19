@@ -3,7 +3,7 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class SSR {
-    constructor(renderer, sceneCamera, controls, normalRT, positionRT, depthRT, colorRT) {
+    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, colorRT) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
@@ -52,9 +52,8 @@ export default class SSR {
                 uTAA:          { type: "t", value: null },
                 uOldSSRColor:  { type: "t", value: null },
                 uOldSSRUv:     { type: "t", value: null },
-                uPosition:     { type: "t", value: positionRT.texture },
-                uDepth:        { type: "t", value: depthRT.texture },
-                uNormal:       { type: "t", value: normalRT.texture },
+                uPosition:     { type: "t", value: positionTexture },
+                uNormal:       { type: "t", value: normalTexture },
                 uColor:        { type: "t", value: colorRT.texture },
                 uCameraPos:    { value: new THREE.Vector3(0,0,0) },
                 uCameraTarget: { value: new THREE.Vector3(0,0,0) },
@@ -92,7 +91,6 @@ export default class SSR {
 			    layout(location = 1) out vec4 out_Uv;
 
                 uniform sampler2D uPosition;
-                uniform sampler2D uDepth;
                 uniform sampler2D uNormal;
                 uniform sampler2D uColor;
                 uniform sampler2D uTAA;
@@ -108,8 +106,8 @@ export default class SSR {
                 in mat4 vViewMatrix;
 
                 float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
-                float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
-                float rand(vec3 co){ return rand(co.xy+rand(co.z)); }
+                float rand(vec2 co)  { return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
+                float rand(vec3 co)  { return rand(co.xy+rand(co.z)); }
 
                 #define PI 3.14159
                 #define texture2D texture
@@ -118,7 +116,7 @@ export default class SSR {
                     vec4 projP = vProjViewMatrix * vec4(p, 1.0);
                     vec2 pNdc = (projP / projP.w).xy;
                     vec2 pUv  = pNdc * 0.5 + 0.5;
-                    float depthAtPointP = texture2D(uDepth, pUv).x;
+                    float depthAtPointP = texture2D(uPosition, pUv).w;
                     if(depthAtPointP == 0.0) depthAtPointP = 9999999.0; 
 
                     return depthAtPointP;
@@ -268,8 +266,9 @@ export default class SSR {
                 }
 
                 void main() {
-                    vec3 pos    = texture2D(uPosition, vUv).xyz;
-                    float depth = texture2D(uDepth, vUv).x;
+                    vec4 posTexel = texture2D(uPosition, vUv);
+                    vec3 pos    = posTexel.xyz;
+                    float depth = posTexel.w;
                     vec3 norm   = texture2D(uNormal, vUv).xyz;
                     vec4 col    = texture2D(uColor, vUv);
 
@@ -339,7 +338,7 @@ export default class SSR {
                             vec4 projP = vProjViewMatrix * vec4(p, 1.0);
                             vec2 pNdc = (projP / projP.w).xy;
                             vec2 pUv  = pNdc * 0.5 + 0.5;
-                            float depthAtPosBuff = texture2D(uDepth, pUv).x;
+                            float depthAtPosBuff = texture2D(uPosition, pUv).w;
                             
     
                             if(depthAtPosBuff == 0.0) {

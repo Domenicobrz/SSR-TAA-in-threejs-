@@ -3,7 +3,7 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class Atrous {
-    constructor(renderer, normalRT, positionRT, SSRRT) {
+    constructor(renderer, normalTexture, positionTexture, SSRRT) {
         let width  = SSRRT.write.texture[0].image.width;
         let height = SSRRT.write.texture[0].image.height;
         this.atrousRT = DoubleRT(width, height, THREE.LinearFilter);
@@ -14,8 +14,8 @@ export default class Atrous {
             uniforms: {
                 "uSSR":          { type: "t", value: null },
                 "uHistoryAccum": { type: "t", value: null },
-                "uNormal":       { type: "t", value: normalRT.texture   },
-                "uPosition":     { type: "t", value: positionRT.texture },
+                "uNormal":       { type: "t", value: normalTexture   },
+                "uPosition":     { type: "t", value: positionTexture },
                 "uStep":  { value: 1.0 },
                 "uScreenSize": { value: new THREE.Vector2(width, height) },
                 "uN_phi": { value: 0.0 },
@@ -131,7 +131,7 @@ export default class Atrous {
         });
 
         this.mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2,2), this.material);
-        this.camera = new THREE.PerspectiveCamera(45, positionRT.width / positionRT.height, 0.1, 100);
+        this.camera = new THREE.PerspectiveCamera(45, positionTexture.width / positionTexture.height, 0.1, 100);
         this.renderer = renderer;
 
         this.scene = new THREE.Scene();

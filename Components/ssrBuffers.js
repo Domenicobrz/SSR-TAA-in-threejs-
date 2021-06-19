@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import { Vector3 } from "three";
 import DoubleRT from "./doubleRT";
 import Utils from "./utils";
+import { defaultWhiteTexture, defaultBlackTexture } from "./defaultTextures";
 
 export default class SSRBuffers {
     constructor(width, height) {
@@ -10,33 +12,50 @@ export default class SSRBuffers {
             4
         );
         
-        for ( let j = 0, il = GBuffer.texture.length; j < il; j ++ ) {
-            GBuffer.texture[ j ].minFilter = THREE.NearestFilter;
-            GBuffer.texture[ j ].magFilter = THREE.NearestFilter;
-            GBuffer.texture[ j ].type = THREE.FloatType;
+        for ( let j = 0, il = this.GBuffer.texture.length; j < il; j ++ ) {
+            this.GBuffer.texture[ j ].minFilter = THREE.NearestFilter;
+            this.GBuffer.texture[ j ].magFilter = THREE.NearestFilter;
+            this.GBuffer.texture[ j ].type = THREE.FloatType;
         }
 
-        GBuffer.texture[ 0 ].name = 'normal';
-        GBuffer.texture[ 1 ].name = 'position';
-        GBuffer.texture[ 2 ].name = 'color';
-        GBuffer.texture[ 3 ].name = 'material';
+        this.GBuffer.texture[ 0 ].name = 'normal';
+        this.GBuffer.texture[ 1 ].name = 'position';
+        this.GBuffer.texture[ 2 ].name = 'albedo';
+        this.GBuffer.texture[ 3 ].name = 'material';
 
-        this.bufferMaterial = new THREE.ShaderMaterial({
+        this.GTextures = { 
+            normal:   this.GBuffer.texture[ 0 ],
+            position: this.GBuffer.texture[ 1 ],
+            albedo:   this.GBuffer.texture[ 2 ],
+            material: this.GBuffer.texture[ 3 ],
+        };
+        
+        this.bufferMaterial = new THREE.RawShaderMaterial({
             uniforms: {
                 uRoughness: { value: 1 },
                 uMetalness: { value: 1 },
-                uColor:     { value: new THREE.Vector3(1,1,1) },
+                uAlbedo:    { value: new Vector3(1,1,1) },
 
                 uRoughnessMap: { type: "t", value: null },
                 uMetalnessMap: { type: "t", value: null },
-                uColorMap:     { type: "t", value: null },
+                uAlbedoMap:    { type: "t", value: null },
             },
             
             vertexShader: `
-                varying vec3 vNormal;
-                varying vec3 vPosition;
-                varying vec2 vUv;
-                varying float vDepth;
+                in vec3 position;
+                in vec3 normal;
+                in vec2 uv;
+
+                out vec3 vNormal;
+                out vec3 vPosition;
+                out vec2 vUv;
+                out float vDepth;
+
+                uniform mat4 modelMatrix;
+                uniform mat4 modelViewMatrix;
+			    uniform mat4 viewMatrix;
+			    uniform mat4 projectionMatrix;
+			    uniform mat3 normalMatrix;
 
                 void main() {
                     // world space normal
@@ -56,31 +75,40 @@ export default class SSRBuffers {
             `,
 
             fragmentShader: `
-                varying vec3 vNormal;
-                varying vec3 vPosition;
-                varying vec2 vUv;
-                varying float vDepth;
+                precision highp float;
+                precision highp int;
+
+                in vec3 vNormal;
+                in vec3 vPosition;
+                in vec2 vUv;
+                in float vDepth;
 
                 uniform float uRoughness;
                 uniform float uMetalness;
-                uniform vec3  uColor;
+                uniform vec3  uAlbedo;
 
                 uniform sampler2D uRoughnessMap;
                 uniform sampler2D uMetalnessMap;
-                uniform sampler2D uColorMap;
+                uniform sampler2D uAlbedoMap;
+
+                layout(location = 0) out vec4 out_normal;
+			    layout(location = 1) out vec4 out_position;
+			    layout(location = 2) out vec4 out_albedo;
+			    layout(location = 3) out vec4 out_material;
 
                 void main() {
-                    float roughness = texture2D(uRoughnessMap, vUv).x * uRoughness;
-                    float metalness = texture2D(uMetalnessMap, vUv).x * uMetalness;
-                    vec3 color      = texture2D(uColorMap, vUv).xyz * uColor;
+                    float roughness = texture(uRoughnessMap, vUv).x * uRoughness;
+                    float metalness = texture(uMetalnessMap, vUv).y * uMetalness;
+                    vec3 albedo     = texture(uAlbedoMap, vUv).xyz * uAlbedo;
 
-                    gl_FragColor = vec4(roughness, metalness, 0.0, 0.0);
-                    gl_FragColor = vec4(roughness, metalness, 0.0, 0.0);
-                    gl_FragColor = vec4(vPosition, vDepth);
-                    gl_FragColor = vec4(normalize(vNormal), 1.0);
+                    out_normal      = vec4(normalize(vNormal), 1.0);
+                    out_position    = vec4(vPosition, vDepth);
+                    out_albedo      = vec4(albedo, 0.0);
+                    out_material    = vec4(roughness, metalness, 0.0, 0.0);
                 }
             `,
 
+            glslVersion: THREE.GLSL3,
             side: THREE.DoubleSide,
         });
 
@@ -100,9 +128,18 @@ export default class SSRBuffers {
             // if we keep this uncommented we have to take into account that we might have
             // meshes that don't specify some textures / properties we might need
             // if(!mesh.material instanceof SSRMaterial) continue;
+            
+            // pointlights don't have materials assigned
+            if(!mesh.material) continue;
 
             mesh.savedMaterial = mesh.material;
             mesh.material = this.bufferMaterial;
+            mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map;
+            mesh.material.uniforms.uRoughnessMap.value = mesh.savedMaterial.roughnessMap || defaultWhiteTexture;
+            mesh.material.uniforms.uMetalnessMap.value = mesh.savedMaterial.metalnessMap || defaultWhiteTexture;
+            mesh.material.uniforms.uAlbedo.value       = mesh.savedMaterial.color     || new Vector3(1,1,1);
+            mesh.material.uniforms.uRoughness.value    = mesh.savedMaterial.roughness || 1;
+            mesh.material.uniforms.uMetalness.value    = mesh.savedMaterial.metalness || 0;
     
             // remember: momentBufferScene will always hold 1 single object each time render() is called
             this.bufferScene.add(mesh);
@@ -114,7 +151,7 @@ export default class SSRBuffers {
 
             // re-add again this object to scene since it was removed by momentBufferScene.add(...)
             // it should also remove the object from momentBufferScene
-            scene.add(this.momentBufferScene.children[0]);
+            scene.add(this.bufferScene.children[0]);
         }
 
         renderer.autoClear = autoClearOpt;
