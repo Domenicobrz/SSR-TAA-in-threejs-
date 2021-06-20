@@ -49,6 +49,8 @@ let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
 let box = new THREE.Mesh(boxGeometry, new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
 box.castShadow = true; 
 box.receiveShadow = true; 
+box.material.roughness = 0.15;
+box.material.metalness = 0;
 scene.add(box);
 
 for(let i = 0; i < 9; i++) {

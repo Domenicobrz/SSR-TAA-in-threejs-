@@ -7,7 +7,7 @@ export default class SSR {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
-        let postReflMult = "3.0";
+        let postReflMult = "1.0";
         let samples      = "1";
 
         let rts = [];
@@ -217,6 +217,11 @@ export default class SSR {
                     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
                 }
 
+                vec3 F_Schlick(float u, vec3 f0) {
+                    float f = pow(1.0 - u, 5.0);
+                    return f + f0 * (1.0 - f);
+                }
+
                 float DistributionGGX(vec3 N, vec3 H, float roughness) {
                     float a      = roughness*roughness;
                     float a2     = a*a;
@@ -228,6 +233,14 @@ export default class SSR {
                     denom = PI * denom * denom;
                 
                     return num / denom;
+                }
+
+                float DistributionGGXFilament(vec3 N, vec3 H, float roughness) {
+                        // from filament
+                    float NoH  = max(dot(N, H), 0.0);
+                    float a = NoH * roughness;
+                    float k = roughness / (1.0 - NoH * NoH + a * a);
+                    return k * k * (1.0 / PI);
                 }
 
                 float GeometrySchlickGGX(float NdotV, float roughness) {
@@ -249,9 +262,19 @@ export default class SSR {
                     return ggx1 * ggx2;
                 }
 
+                float V_SmithGGXCorrelatedFast(vec3 N, vec3 V, vec3 L, float roughness) {
+                    float NoV = dot(N, V);
+                    float NoL = dot(N, L);
+                    float a = roughness;
+                    float GGXV = NoL * (NoV * (1.0 - a) + a);
+                    float GGXL = NoV * (NoL * (1.0 - a) + a);
+                    return 0.5 / (GGXV + GGXL);
+                }
+
                 // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
                 vec3 EvalBRDF(vec3 wi, vec3 wo, vec3 n, float roughness, vec3 F0) {
                     vec3 wm = (wo + wi) * 0.5;
+                    // vec3 wm = normalize((wo + wi));
                     if (/* (wi.y <= 0.0) || */ dot(wi, wm) <= 0.0) {
                         return vec3(0.0);
                     }
@@ -264,7 +287,21 @@ export default class SSR {
                     float denominator = 4.0 * max(dot(n, wo), 0.0) * max(dot(n, wi), 0.0);
                     vec3 specular     = numerator / max(denominator, 0.001);  
 
+                    // return F0 * specular;
                     return specular;
+
+
+
+
+                    // // from filament
+                    // vec3 F    = F_Schlick(max(dot(wm, wo), 0.0), F0);
+                    // float NDF = DistributionGGXFilament(n, wm, roughness); 
+                    // float G   = V_SmithGGXCorrelatedFast(n, wo, wi, roughness);
+
+                    // // specular BRDF
+                    // vec3 Fr = (NDF * G) * F;
+
+                    // return Fr;
                 }
 
                 void main() {
@@ -405,6 +442,7 @@ export default class SSR {
                             vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
                             p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
                             vec3 color = texture2D(uColor, p2Uv).xyz;
+                            // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
                             mult *= color;
 
                             vec3 F0 = vec3(0.04);
