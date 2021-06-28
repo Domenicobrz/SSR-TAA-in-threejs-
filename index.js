@@ -51,7 +51,7 @@ ground.material.metalness = 0.95;
 
 let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
 // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
-let box = new THREE.Mesh(boxGeometry, new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
+let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: texture }));
 box.castShadow = true; 
 box.receiveShadow = true; 
 box.material.roughness = 0.15;
@@ -60,7 +60,7 @@ scene.add(box);
 
 for(let i = 0; i < 9; i++) {
     let y = 2 + Math.random() * 9;
-    let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
+    let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), SSRMaterial({ color: 0xf5f341, map: texture }));
     let angle = -i / 7 * Math.PI;
     let x = Math.cos(angle) * 15;
     let z = Math.sin(angle) * 15;
