@@ -131,7 +131,7 @@ export default class SSRBuffers {
 
             mesh.savedMaterial = mesh.material;
             mesh.material = this.bufferMaterial;
-            mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map;
+            mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map          || defaultWhiteTexture;
             mesh.material.uniforms.uRoughnessMap.value = mesh.savedMaterial.roughnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uMetalnessMap.value = mesh.savedMaterial.metalnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uAlbedo.value       = mesh.savedMaterial.color     || new Vector3(1,1,1);

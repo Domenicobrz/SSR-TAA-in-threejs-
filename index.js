@@ -5,10 +5,11 @@ import Blit from "./Components/blit";
 import BlitDepth from "./Components/blitDepth";
 import BlitNormals from "./Components/blitNormals";
 import BlitPosition from "./Components/blitPosition";
-import SSR from "./Components/ssr";
+import SSR, { SSRMaterial } from "./Components/ssr";
 import TAA from "./Components/taa";
 import Atrous from "./Components/atrous";
 import SSRBuffers from "./Components/ssrBuffers";
+import { defaultWhiteTexture } from "./Components/defaultTextures";
 
 let scene = new THREE.Scene();
 
@@ -36,13 +37,17 @@ clock.start();
 let texture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
 // let texture;
 
-let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: texture }));
+// let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: texture }));
+let ground = new THREE.Mesh(
+    new THREE.BoxBufferGeometry(500, 2, 500), 
+    SSRMaterial({ color: 0xffffff })
+);
 // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: texture }));
 ground.position.set(0, -5, 0);
 ground.castShadow = true; 
 ground.receiveShadow = true; 
 ground.material.roughness = 0.15;
-ground.material.metalness = 0;
+ground.material.metalness = 0.95;
 
 let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
 // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);

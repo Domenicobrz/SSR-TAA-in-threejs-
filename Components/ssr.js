@@ -9,6 +9,7 @@ export default class SSR {
       
         let postReflMult = "1.0";
         let samples      = "1";
+        let F0           = "1.0";
 
         let rts = [];
         for(let i = 0; i < 2; i++) {
@@ -190,7 +191,7 @@ export default class SSR {
 
                 float samplePDF(vec3 wi, vec3 wo, vec3 norm, float roughness) {
                     vec3 wg = norm;
-                    vec3 wm = (wo + wi) * 0.5;
+                    vec3 wm = normalize(wo + wi);
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float cosTheta = dot(wg, wm);
@@ -198,20 +199,6 @@ export default class SSR {
                     float D = a2 / (PI * exp * exp);
                     return (D * dot(wm, wg)) / (4.0 * dot(wo,wm));
                 }
-
-                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-                // func (m Microfacet) Eval(wi, wo geom.Direction) rgb.Energy {
-                //     wg := geom.Up
-                //     wm := wo.Half(wi)
-                //     if wi.Y <= 0 || wi.Dot(wm) <= 0 {
-                //         return rgb.Energy{0, 0, 0}
-                //     }
-                //     F := fresnelSchlick(wi, wg, m.F0.Mean()) // The Fresnel function
-                //     D := ggx(wi, wo, wg, m.Roughness)        // The NDF (Normal Distribution Function)
-                //     G := smithGGX(wo, wg, m.Roughness)       // The Geometric Shadowing function
-                //     r := (F * D * G) / (4 * wg.Dot(wi) * wg.Dot(wo))
-                //     return m.F0.Scaled(r)
-                // }
 
                 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
                     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
@@ -222,17 +209,40 @@ export default class SSR {
                     return f + f0 * (1.0 - f);
                 }
 
+                // // GGX Normal Distribution Function
+                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+                // func ggx(in, out, normal geom.Direction, roughness float64) float64 {
+                //     m := in.Half(out)
+                //     a := roughness * roughness
+                //     nm2 := math.Pow(normal.Dot(m), 2)
+                //     return (a * a) / (math.Pi * math.Pow(nm2*(a*a-1)+1, 2))
+                // }
+                // 
+                // // Smith geometric shadowing for a GGX distribution
+                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+                // func smithGGX(out, normal geom.Direction, roughness float64) float64 {
+                //     a := roughness * roughness
+                //     nv := normal.Dot(out)
+                //     return (2 * nv) / (nv + math.Sqrt(a*a+(1-a*a)*nv*nv))
+                // }
+
                 float DistributionGGX(vec3 N, vec3 H, float roughness) {
-                    float a      = roughness*roughness;
-                    float a2     = a*a;
-                    float NdotH  = max(dot(N, H), 0.0);
-                    float NdotH2 = NdotH*NdotH;
+                    vec3 m = H;
+                    float a = roughness * roughness;
+                    float nm2 = pow(dot(N, H), 2.0);
+                    return (a * a) / (PI * pow( nm2 * ( a * a - 1.0 ) + 1.0, 2.0));
+
+
+                    // float a      = roughness*roughness;
+                    // float a2     = a*a;
+                    // float NdotH  = max(dot(N, H), 0.0);
+                    // float NdotH2 = NdotH*NdotH;
                 
-                    float num   = a2;
-                    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-                    denom = PI * denom * denom;
+                    // float num   = a2;
+                    // float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+                    // denom = PI * denom * denom;
                 
-                    return num / denom;
+                    // return num / denom;
                 }
 
                 float DistributionGGXFilament(vec3 N, vec3 H, float roughness) {
@@ -254,12 +264,17 @@ export default class SSR {
                 }
                 
                 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
-                    float NdotV = max(dot(N, V), 0.0);
-                    float NdotL = max(dot(N, L), 0.0);
-                    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
-                    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+                    float a = roughness * roughness;
+                    float nv = dot(N, V);
+                    return (2.0 * nv) / (nv + sqrt(a*a + (1.0 - a*a) * nv * nv ));
+                    
+                    
+                    // float NdotV = max(dot(N, V), 0.0);
+                    // float NdotL = max(dot(N, L), 0.0);
+                    // float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+                    // float ggx1  = GeometrySchlickGGX(NdotL, roughness);
                 
-                    return ggx1 * ggx2;
+                    // return ggx1 * ggx2;
                 }
 
                 float V_SmithGGXCorrelatedFast(vec3 N, vec3 V, vec3 L, float roughness) {
@@ -271,10 +286,23 @@ export default class SSR {
                     return 0.5 / (GGXV + GGXL);
                 }
 
+                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+                // func (m Microfacet) Eval(wi, wo geom.Direction) rgb.Energy {
+                //     wg := geom.Up
+                //     wm := wo.Half(wi)
+                //     if wi.Y <= 0 || wi.Dot(wm) <= 0 {
+                //         return rgb.Energy{0, 0, 0}
+                //     }
+                //     F := fresnelSchlick(wi, wg, m.F0.Mean()) // The Fresnel function
+                //     D := ggx(wi, wo, wg, m.Roughness)        // The NDF (Normal Distribution Function)
+                //     G := smithGGX(wo, wg, m.Roughness)       // The Geometric Shadowing function
+                //     r := (F * D * G) / (4 * wg.Dot(wi) * wg.Dot(wo))
+                //     return m.F0.Scaled(r)
+                // }
+
                 // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
                 vec3 EvalBRDF(vec3 wi, vec3 wo, vec3 n, float roughness, vec3 F0) {
-                    vec3 wm = (wo + wi) * 0.5;
-                    // vec3 wm = normalize((wo + wi));
+                    vec3 wm = normalize(wo + wi);
                     if (/* (wi.y <= 0.0) || */ dot(wi, wm) <= 0.0) {
                         return vec3(0.0);
                     }
@@ -283,12 +311,13 @@ export default class SSR {
                     float NDF = DistributionGGX(n, wm, roughness); 
                     float G   = GeometrySmith(n, wo, wi, roughness);   
 
-                    vec3 numerator    = NDF * G * F;
-                    float denominator = 4.0 * max(dot(n, wo), 0.0) * max(dot(n, wi), 0.0);
-                    vec3 specular     = numerator / max(denominator, 0.001);  
-
-                    // return F0 * specular;
-                    return specular;
+                    // vec3 numerator    = NDF * G * F;
+                    // float denominator = 4.0 * max(dot(n, wo), 0.0) * max(dot(n, wi), 0.0);
+                    // vec3 specular     = numerator / max(denominator, 0.001);  
+                    
+                    vec3 specular = (F * NDF * G) / (4.0 * dot(wi, n) * dot(n,wo));
+                    return F0 * specular;
+                    // return specular;
 
 
 
@@ -308,7 +337,7 @@ export default class SSR {
                     vec4 posTexel = texture2D(uPosition, vUv);
                     vec3 pos      = posTexel.xyz;
                     float depth   = posTexel.w;
-                    vec3 norm     = texture2D(uNormal, vUv).xyz;
+                    vec3 norm     = normalize(texture2D(uNormal, vUv).xyz);
                     vec4 col      = texture2D(uColor, vUv);
                     vec4 albedo   = texture2D(uAlbedo, vUv);
                     vec4 material = texture2D(uMaterial, vUv);
@@ -351,6 +380,7 @@ export default class SSR {
                     int samples = ${samples};
                     for(int s = 0; s < samples; s++) {
                         vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness);
+                        reflDir = normalize(reflDir);
                         
                         vec3 rd = reflDir;
                         vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
@@ -438,14 +468,13 @@ export default class SSR {
                         vec2 p2Uv;
                         if(abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
                             // intersection validated
-                            // get normal & material at p2
                             vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
                             p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
                             vec3 color = texture2D(uColor, p2Uv).xyz;
                             // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
                             mult *= color;
 
-                            vec3 F0 = vec3(0.04);
+                            vec3 F0 = vec3(${F0});
                             F0 = mix(F0, albedo.xyz, metalness);
                             
                             // apply pdf and brdf
@@ -453,7 +482,7 @@ export default class SSR {
                             float pdf = samplePDF(rd, -viewDir, norm, roughness);
 
                             mult *= brdf;
-                            mult /= max(pdf, 0.000000000000000001);
+                            mult /= max(pdf, 0.0000000000001);
 
                             intersected = true;
                         } else {
@@ -554,16 +583,17 @@ export default class SSR {
                     vec3 viewDir = normalize(pos - uCameraPos);
 
                     float metalness = material.y;
-                    // vec3 F0 = vec3(0.04);
-                    // F0 = mix(F0, albedo.xyz, metalness);
+                    vec3 F0 = vec3(${F0});
+                    F0 = mix(F0, albedo.xyz, metalness);
 
-                    // vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
+                    vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
 
-                    // vec3 kS = F;
+                    vec3 kS = F;
                     // vec3 kD = 1.0 - kS;
 
+                    // vec3 kD = (1.0 - metalness) * (1.0 - kS);
+                    // vec3 kD = vec3(1.0 - metalness);
                     vec3 kD = vec3(1.0);
-                    kD *= 1.0 - metalness;
 
                     gl_FragColor = vec4(col * kD + ssr * ${postReflMult}, 1.0);
                 }
@@ -609,4 +639,28 @@ export default class SSR {
 
         this.renderer.setRenderTarget(null);
     }
+}
+
+export let SSRMaterial = function(args) {
+    let baseMaterial = new THREE.MeshStandardMaterial(args);
+
+    // remove envmap reflections from this material (we could also remove analytical lights but we decided to keep them for now)
+    baseMaterial.onBeforeCompile = (shader) => {
+        // "unroll" the entire shader
+        shader.fragmentShader = Utils.parseIncludes(shader.fragmentShader); 
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            // line to replace...
+            "radiance += getLightProbeIndirectRadiance( geometry.viewDir, geometry.normal, material.specularRoughness, maxMipLevel );", 
+            "", 
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            // line to replace...
+            "RE_IndirectSpecular( radiance, iblIrradiance, clearcoatRadiance, geometry, material, reflectedLight );", 
+            "", 
+        );
+    };
+
+    return baseMaterial;
 }
