@@ -57,6 +57,7 @@ export default class SSR {
                 uAlbedo:       { type: "t", value: albedoTexture },
                 uMaterial:     { type: "t", value: materialTexture },
                 uColor:        { type: "t", value: colorRT.texture },
+                uEnvmap:       { type: "t", value: null },
                 uCameraPos:    { value: new THREE.Vector3(0,0,0) },
                 uCameraTarget: { value: new THREE.Vector3(0,0,0) },
                 uRandoms:      { value: new THREE.Vector4(0,0,0,0) },
@@ -100,6 +101,7 @@ export default class SSR {
                 uniform sampler2D uTAA;
                 uniform sampler2D uOldSSRColor;
                 uniform sampler2D uOldSSRUv;
+                uniform sampler2D uEnvmap;
 
                 uniform vec3 uCameraPos;
                 uniform vec3 uCameraTarget;
@@ -115,6 +117,9 @@ export default class SSR {
 
                 #define PI 3.14159
                 #define texture2D texture
+                #ifndef saturate
+                    #define saturate(a) clamp( a, 0.0, 1.0 )
+                #endif
 
                 float depthBufferAtP(vec3 p) {
                     vec4 projP = vProjViewMatrix * vec4(p, 1.0);
@@ -333,6 +338,45 @@ export default class SSR {
                     // return Fr;
                 }
 
+                vec3 RRTAndODTFit( vec3 v ) {
+                    vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
+                    vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+                    return a / b;
+                }
+                vec3 ACESFilmicToneMapping( vec3 color ) {
+                    const mat3 ACESInputMat = mat3(
+                    vec3( 0.59719, 0.07600, 0.02840 ), vec3( 0.35458, 0.90834, 0.13383 ), vec3( 0.04823, 0.01566, 0.83777 )
+                    );
+                    const mat3 ACESOutputMat = mat3(
+                    vec3(  1.60475, -0.10208, -0.00327 ), vec3( -0.53108, 1.10813, -0.07276 ), vec3( -0.07367, -0.00605, 1.07602 )
+                    );
+                    float toneMappingExposure = 1.0;
+                    color *= toneMappingExposure / 0.6;
+                    color = ACESInputMat * color;
+                    color = RRTAndODTFit( color );
+                    color = ACESOutputMat * color;
+                    return saturate( color );
+                }
+
+                vec4 RGBEToLinear( in vec4 value ) {
+                    return vec4( value.rgb * exp2( value.a * 255.0 - 128.0 ), 1.0 );
+                }
+
+                vec3 getEnvmapRadiance(vec3 idir) {
+                    vec3 dir = vec3(idir.zyx);
+
+                    // skybox coordinates
+                    vec2 skyboxUV = vec2(
+                        (atan(dir.x, dir.z) + PI) / (PI * 2.0),
+                        (asin(dir.y) + PI * 0.5) / (PI)
+                    );
+                    // vec3 radianceClamp = vec3(100.0);
+                    vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
+                    // col = clamp(col, vec3(0.0), vec3(radianceClamp));
+                    col = pow(col, vec3(2.2)); 
+                    return col;
+                }
+
                 void main() {
                     vec4 posTexel = texture2D(uPosition, vUv);
                     vec3 pos      = posTexel.xyz;
@@ -514,7 +558,10 @@ export default class SSR {
                                 // this one makes a cool effect too
                                 // sum += vec4(oldSSR, 0.0);
 
-                                vec3 envColor = vec3(0.0) * (1.0 - t) + oldSSR * t; 
+                                vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
+                                sum += vec4(envColor, 0.0);
+                            } else {
+                                vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
                                 sum += vec4(envColor, 0.0);
                             }
                         } else {
@@ -593,6 +640,7 @@ export default class SSR {
 
                     // vec3 kD = (1.0 - metalness) * (1.0 - kS);
                     // vec3 kD = vec3(1.0 - metalness);
+                    // vec3 kD = vec3(1.0) * (1.0 - kS);
                     vec3 kD = vec3(1.0);
 
                     gl_FragColor = vec4(col * kD + ssr * ${postReflMult}, 1.0);
@@ -613,7 +661,7 @@ export default class SSR {
         this.controls = controls;
     }
 
-    compute(TAART) {
+    compute(TAART, envmap) {
         this.SSRRT.swap();
         this.renderer.setRenderTarget(this.SSRRT.write);
 
@@ -623,6 +671,7 @@ export default class SSR {
         this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
         this.material.uniforms.uOldSSRUv.value     = this.SSRRT.read.texture[1];
         this.material.uniforms.uTAA.value     = TAART;
+        this.material.uniforms.uEnvmap.value  = envmap;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.renderer.render(this.scene, this.sceneCamera);
 

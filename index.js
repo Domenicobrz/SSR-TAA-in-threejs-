@@ -40,10 +40,11 @@ let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-cl
 
 
 let pmremGenerator = new THREE.PMREMGenerator( renderer );
-
+let envmapEqui;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
 .load("assets/envmap.hdr", function ( texture, textureData ) {
+    envmapEqui = texture;
     let envmap = pmremGenerator.fromEquirectangular( texture ).texture;
     scene.environment = envmap;
     scene.background = envmap;
@@ -58,7 +59,7 @@ new RGBELoader()
     ground.castShadow = true; 
     ground.receiveShadow = true; 
     ground.material.roughness = 0.15;
-    ground.material.metalness = 0;
+    ground.material.metalness = 0.95;
     scene.add(ground);
 
     let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
@@ -169,7 +170,7 @@ function animate() {
     renderer.render(scene, camera);
     renderer.shadowMap.needsUpdate = false;
 
-    SSRProgram.compute(TAAProgram.momentMoveRT.write);
+    SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui);
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
