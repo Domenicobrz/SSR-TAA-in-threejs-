@@ -83,8 +83,6 @@ export default class TAA {
         this.scene = scene;
         this.camera = camera;
         this.lastViewMatrixInverse = camera.matrixWorldInverse.clone();
-        
-        this.updateOldMatrices();
     }
 
     computeMoment() {
@@ -103,6 +101,9 @@ export default class TAA {
         this.momentBufferMaterial.uniforms.uLastMomentMove.value = this.momentMoveRT.read.texture;
 
         for(let i = this.scene.children.length - 1; i >= 0; i--) {
+            if(!this.scene.children[i] instanceof THREE.Mesh) continue;
+            if(!this.scene.children[i].oldWorldMatrix) this.scene.children[i].oldWorldMatrix = this.scene.children[i].matrixWorld.clone();
+
             this.scene.children[i].savedMaterial = this.scene.children[i].material;
             this.scene.children[i].material = this.momentBufferMaterial;
     

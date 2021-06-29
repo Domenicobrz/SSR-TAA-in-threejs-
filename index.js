@@ -10,6 +10,7 @@ import TAA from "./Components/taa";
 import Atrous from "./Components/atrous";
 import SSRBuffers from "./Components/ssrBuffers";
 import { defaultWhiteTexture } from "./Components/defaultTextures";
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 
 let scene = new THREE.Scene();
 
@@ -34,49 +35,61 @@ let clock = new THREE.Clock();
 clock.start();
 
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
-let texture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
+let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
 // let texture;
 
-// let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: texture }));
-let ground = new THREE.Mesh(
-    new THREE.BoxBufferGeometry(500, 2, 500), 
-    SSRMaterial({ color: 0xffffff })
-);
-// let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: texture }));
-ground.position.set(0, -5, 0);
-ground.castShadow = true; 
-ground.receiveShadow = true; 
-ground.material.roughness = 0.15;
-ground.material.metalness = 0.95;
 
-let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
-// let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
-let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: texture }));
-box.castShadow = true; 
-box.receiveShadow = true; 
-box.material.roughness = 0.15;
-box.material.metalness = 0;
-scene.add(box);
+let pmremGenerator = new THREE.PMREMGenerator( renderer );
 
-for(let i = 0; i < 9; i++) {
-    let y = 2 + Math.random() * 9;
-    let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), SSRMaterial({ color: 0xf5f341, map: texture }));
-    let angle = -i / 7 * Math.PI;
-    let x = Math.cos(angle) * 15;
-    let z = Math.sin(angle) * 15;
+new RGBELoader()
+.setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
+.load("assets/envmap.hdr", function ( texture, textureData ) {
+    let envmap = pmremGenerator.fromEquirectangular( texture ).texture;
+    scene.environment = envmap;
+    scene.background = envmap;
 
+    // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
+    let ground = new THREE.Mesh(
+        new THREE.BoxBufferGeometry(500, 2, 500), 
+        SSRMaterial({ color: 0xffffff, envMap: envmap })
+    );
+    // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
+    ground.position.set(0, -5, 0);
+    ground.castShadow = true; 
+    ground.receiveShadow = true; 
+    ground.material.roughness = 0.15;
+    ground.material.metalness = 0;
+    scene.add(ground);
+
+    let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
+    // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
+    let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
     box.castShadow = true; 
     box.receiveShadow = true; 
-    box.position.set(x, +y * 0.5 - 4, z);
     box.material.roughness = 0.15;
     box.material.metalness = 0;
-
     scene.add(box);
-}
+
+    for(let i = 0; i < 9; i++) {
+        let y = 2 + Math.random() * 9;
+        let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
+        let angle = -i / 7 * Math.PI;
+        let x = Math.cos(angle) * 15;
+        let z = Math.sin(angle) * 15;
+
+        box.castShadow = true; 
+        box.receiveShadow = true; 
+        box.position.set(x, +y * 0.5 - 4, z);
+        box.material.roughness = 0.15;
+        box.material.metalness = 0;
+
+        scene.add(box);
+    }
+});
 
 // for(let i = 0; i < 15; i++) {
 //     let y = 2 + Math.random() * 9;
-//     let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
+//     let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: testTexture }));
 //     box.castShadow = true; 
 //     box.receiveShadow = true; 
 //     box.position.set(-8, +y * 0.5 - 4, -i * 5 + 30);
@@ -85,7 +98,7 @@ for(let i = 0; i < 9; i++) {
 // }
 // for(let i = 0; i < 15; i++) {
 //     let y = 2 + Math.random() * 9;
-//     let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: texture }));
+//     let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), new THREE.MeshPhongMaterial({ color: 0xf5f341, map: testTexture }));
 //     box.castShadow = true; 
 //     box.receiveShadow = true; 
 //     box.position.set(8, +y * 0.5 - 4, -i * 5 + 30);
@@ -102,7 +115,7 @@ let light2 = new THREE.PointLight(0xffbb88, 0.5, 100, 1);
 light2.castShadow = true;
 light2.position.set(16, 17, 5);
 
-scene.add(ground, light1, light2);
+// scene.add(light1, light2);
 
 let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
 

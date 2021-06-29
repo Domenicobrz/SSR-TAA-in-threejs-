@@ -657,9 +657,19 @@ export let SSRMaterial = function(args) {
 
         shader.fragmentShader = shader.fragmentShader.replace(
             // line to replace...
-            "RE_IndirectSpecular( radiance, iblIrradiance, clearcoatRadiance, geometry, material, reflectedLight );", 
+            "BRDF_Specular_Multiscattering_Environment( geometry, material.specularColor, material.specularRoughness, singleScattering, multiScattering );", 
             "", 
         );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            "reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;",
+            "reflectedLight.indirectSpecular = vec3(0.0);",
+        );
+
+        // shader.fragmentShader = shader.fragmentShader.replace(
+        //     "reflectedLight.indirectDiffuse += diffuse * cosineWeightedIrradiance;",
+        //     "",
+        // );
     };
 
     return baseMaterial;
