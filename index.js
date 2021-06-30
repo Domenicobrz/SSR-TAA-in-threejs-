@@ -59,7 +59,7 @@ new RGBELoader()
     ground.castShadow = true; 
     ground.receiveShadow = true; 
     ground.material.roughness = 0.15;
-    ground.material.metalness = 0.95;
+    ground.material.metalness = 1;
     scene.add(ground);
 
     let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
@@ -118,7 +118,7 @@ light2.position.set(16, 17, 5);
 
 // scene.add(light1, light2);
 
-let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.FloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
 
 let SSRBuffersProgram   = new SSRBuffers(innerWidth, innerHeight);
 let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position);

@@ -372,8 +372,9 @@ export default class SSR {
                     );
                     // vec3 radianceClamp = vec3(100.0);
                     vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
+                    // vec3 col = RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz;
                     // col = clamp(col, vec3(0.0), vec3(radianceClamp));
-                    col = pow(col, vec3(2.2)); 
+                    // col = pow(col, vec3(2.2)); 
                     return col;
                 }
 
@@ -629,21 +630,33 @@ export default class SSR {
 
                     vec3 viewDir = normalize(pos - uCameraPos);
 
-                    float metalness = material.y;
-                    vec3 F0 = vec3(${F0});
-                    F0 = mix(F0, albedo.xyz, metalness);
+                    // float metalness = material.y;
+                    // vec3 F0 = vec3(${F0});
+                    // F0 = mix(F0, albedo.xyz, metalness);
 
-                    vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
+                    // vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
 
-                    vec3 kS = F;
+                    // vec3 kS = F;
+
+                    // we don't have to apply these modifiers since they have already been applied by MeshStandardMaterial in the color pass
                     // vec3 kD = 1.0 - kS;
-
                     // vec3 kD = (1.0 - metalness) * (1.0 - kS);
                     // vec3 kD = vec3(1.0 - metalness);
                     // vec3 kD = vec3(1.0) * (1.0 - kS);
                     vec3 kD = vec3(1.0);
 
-                    gl_FragColor = vec4(col * kD + ssr * ${postReflMult}, 1.0);
+                    // notice that we already applied ACESFilmicToneMapping to ssr in the ssr pass, 
+                    // we're reapplying it again because if we dont the variance is just too high
+                    // I think that applying it in the ssr pass makes it so that the accumulated values
+                    // are applied on numbers over a small range and that helps in reducing substantially the variance 
+
+                    vec3 finalLinear = col * kD + ssr * ${postReflMult};
+                    // vec3 finalLinear = col * kD;
+
+                    vec3 final = ACESFilmicToneMapping(finalLinear);
+                    final = pow(final, vec3(2.2)); 
+
+                    gl_FragColor = vec4(final, 1.0);
                 }
             `,
 
@@ -713,6 +726,16 @@ export let SSRMaterial = function(args) {
         shader.fragmentShader = shader.fragmentShader.replace(
             "reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;",
             "reflectedLight.indirectSpecular = vec3(0.0);",
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            "gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );",
+            "",
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            "gl_FragColor = linearToOutputTexel( gl_FragColor );",
+            "",
         );
 
         // shader.fragmentShader = shader.fragmentShader.replace(
