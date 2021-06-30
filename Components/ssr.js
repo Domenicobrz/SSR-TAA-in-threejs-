@@ -475,10 +475,9 @@ export default class SSR {
                                 p1 = initialP;
                                 p2 = p;
                                 lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
-                              
+
                                 break;
                             }
-    
     
                             p += rd * step * jittB;
                             step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
@@ -532,7 +531,7 @@ export default class SSR {
                             intersected = true;
                         } else {
                             // intersection is invalid
-                            mult = vec3(0.0);
+                            // mult = vec3(0.0);
                         }
                     
 
