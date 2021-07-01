@@ -44,7 +44,7 @@ let pmremGenerator = new THREE.PMREMGenerator( renderer );
 let envmapEqui;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
-.load("assets/envmap.hdr", function ( texture, textureData ) {
+.load("assets/shanghai_bund_2k.hdr", function ( texture, textureData ) {
     envmapEqui = texture;
     let envmap = pmremGenerator.fromEquirectangular( texture ).texture;
     scene.environment = envmap;
