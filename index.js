@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import Blit from "./Components/blit";
 import BlitDepth from "./Components/blitDepth";
 import BlitNormals from "./Components/blitNormals";
@@ -62,30 +63,60 @@ new RGBELoader()
     ground.material.metalness = 1;
     scene.add(ground);
 
-    let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
-    // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
-    let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
-    box.castShadow = true; 
-    box.receiveShadow = true; 
-    box.material.roughness = 0.15;
-    box.material.metalness = 0;
-    scene.add(box);
+    // let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
+    // // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
+    // let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
+    // box.castShadow = true; 
+    // box.receiveShadow = true; 
+    // box.material.roughness = 0.15;
+    // box.material.metalness = 0;
+    // scene.add(box);
 
-    for(let i = 0; i < 9; i++) {
-        let y = 2 + Math.random() * 9;
-        let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
-        let angle = -i / 7 * Math.PI;
-        let x = Math.cos(angle) * 15;
-        let z = Math.sin(angle) * 15;
+    // for(let i = 0; i < 9; i++) {
+    //     let y = 2 + Math.random() * 9;
+    //     let box = new THREE.Mesh(new THREE.BoxBufferGeometry(3, y, 3), SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
+    //     let angle = -i / 7 * Math.PI;
+    //     let x = Math.cos(angle) * 15;
+    //     let z = Math.sin(angle) * 15;
 
-        box.castShadow = true; 
-        box.receiveShadow = true; 
-        box.position.set(x, +y * 0.5 - 4, z);
-        box.material.roughness = 0.15;
-        box.material.metalness = 0;
+    //     box.castShadow = true; 
+    //     box.receiveShadow = true; 
+    //     box.position.set(x, +y * 0.5 - 4, z);
+    //     box.material.roughness = 0.15;
+    //     box.material.metalness = 0;
 
-        scene.add(box);
-    }
+    //     scene.add(box);
+    // }
+
+
+    const loader = new OBJLoader();
+
+    // load a resource
+    loader.load(
+        // resource URL
+        'assets/angel.obj',
+        // called when resource is loaded
+        function ( object ) {
+    
+            let mesh = object.children[0];
+
+            mesh.material = SSRMaterial({ 
+                color: 0xffffff, 
+                // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
+                envMap: envmap,
+                roughness: 1,
+                metalness: 0,
+            });
+            mesh.castShadow = true; 
+            mesh.receiveShadow = true;
+            
+            mesh.scale.set(0.5, 0.5, 0.5);
+            mesh.position.set(0, -5, 0);
+
+            scene.add( mesh );
+        }
+    );
+
 });
 
 // for(let i = 0; i < 15; i++) {

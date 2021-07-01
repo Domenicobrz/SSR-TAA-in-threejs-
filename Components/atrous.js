@@ -97,6 +97,8 @@ export default class Atrous {
                     }
                     float history = texture2D(uHistoryAccum, vUv.st + hstep).z;
                     // stepwidth *= 1.0 - (1.0 - (10.0 - history) / 10.0);
+                    history = clamp(history, 0.0, 20.0);
+                    stepwidth *= 1.0 - (1.0 - (20.0 - history) / 20.0) * 0.8;
                    
                     float cum_w = 0.0;
                     for(int i = 0; i < loopSteps; i++) {
@@ -142,7 +144,7 @@ export default class Atrous {
         this.material.uniforms.uSSR.value = SSRtexture;
         this.material.uniforms.uHistoryAccum.value = TAAtexture;
 
-        for(let i = 0; i < 2; i++) {
+        for(let i = 0; i < 4; i++) {
             this.atrousRT.swap();
             this.renderer.setRenderTarget(this.atrousRT.write);
     

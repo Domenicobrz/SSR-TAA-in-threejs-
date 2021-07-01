@@ -59,6 +59,12 @@ export default class TAA {
                 float oldAccum  = texture2D(uLastMomentMove, olduv).z;
                 float newAccum  = oldAccum + 1.0;
 
+                vec2 moveDelta  = ndcOldPos.xy - ndcNewPos.xy;
+                // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
+                float dist = clamp(length(moveDelta) / 0.005, 0.0, 1.0);
+                newAccum *= 1.0 - dist;
+
+
 
                 // I think this reprojection shader has a problem, the "old normal" could
                 // be different because e.g. the model was rotated, so the pixel might be valid,
@@ -68,7 +74,7 @@ export default class TAA {
                 if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
                 // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
 
-                gl_FragColor = vec4(ndcOldPos.xy - ndcNewPos.xy, newAccum, 1.0);
+                gl_FragColor = vec4(moveDelta, newAccum, 1.0);
                 // test that looks beautiful: (try it)
                 // gl_FragColor = vec4(newAccum / 20.0, 0.0, newAccum, 1.0);
             }`,

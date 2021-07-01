@@ -441,10 +441,10 @@ export default class SSR {
     
                         vec3 p1, p2;
                         float lastRecordedDepthBuffThatIntersected;
-    
+                        bool possibleIntersection = false;
                         for(int i = 0; i < steps; i++) {
                             vec3 initialP = p;
-                            
+
                             // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
                             float jittA = 0.5 + rand(p) * 0.5;
                             if(!jitter) jittA = 1.0;
@@ -475,6 +475,7 @@ export default class SSR {
                                 p1 = initialP;
                                 p2 = p;
                                 lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
+                                possibleIntersection = true;
 
                                 break;
                             }
@@ -486,7 +487,7 @@ export default class SSR {
     
                         // stranamente mi trovo a dover spostare la binary search fuori dal primo loop, altrimenti
                         // per qualche motivo esoterico la gpu inizia a prendere fuoco
-    
+        
                         // ******** binary search start *********
                         for(int j = 0; j < binarySteps; j++) {
                             vec3 mid = (p1 + p2) * 0.5;
@@ -506,11 +507,14 @@ export default class SSR {
                             }
                         }
                         // ******** binary search end   *********
+                       
     
                         // use p2 as the intersection point
                         float depthAtP2 = - (vViewMatrix * vec4(p2, 1.0)).z;
                         vec2 p2Uv;
-                        if(abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
+                        if( possibleIntersection &&   // without using possibleIntersection apparently it's possible that lastRecordedDepthBuffThatIntersected
+                                                      // ends up being valid thanks to the binary search, and that causes all sorts of troubles
+                            abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
                             // intersection validated
                             vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
                             p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
@@ -545,9 +549,9 @@ export default class SSR {
                             vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
                             float specDot = dot(oldSpecularDir, specularReflectionDir);
 
-                            // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
-                            float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
-                            t *= 1.0 - dist;
+                            // // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
+                            // float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
+                            // t *= 1.0 - dist;
 
                             vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
