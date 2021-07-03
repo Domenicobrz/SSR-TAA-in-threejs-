@@ -529,6 +529,9 @@ export default class SSR {
                             vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
                             float pdf = samplePDF(rd, -viewDir, norm, roughness);
 
+                            brdf = clamp(brdf, 0.00001, 10000.0);
+                            pdf  = clamp(pdf,  0.00001, 10000.0);
+
                             mult *= brdf;
                             mult /= max(pdf, 0.0000000000001);
 

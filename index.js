@@ -12,6 +12,7 @@ import Atrous from "./Components/atrous";
 import SSRBuffers from "./Components/ssrBuffers";
 import { defaultWhiteTexture } from "./Components/defaultTextures";
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+import { Mesh, SphereBufferGeometry } from "three";
 
 let scene = new THREE.Scene();
 
@@ -59,7 +60,7 @@ new RGBELoader()
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
-    ground.material.roughness = 0.15;
+    ground.material.roughness = 0.2;
     ground.material.metalness = 1;
     scene.add(ground);
 
@@ -89,31 +90,53 @@ new RGBELoader()
     // }
 
 
-    const loader = new OBJLoader();
+    const loader = new GLTFLoader();
 
     // load a resource
     loader.load(
         // resource URL
-        'assets/angel.obj',
+        'assets/angelLR2.glb',
         // called when resource is loaded
         function ( object ) {
     
-            let mesh = object.children[0];
+            let mesh = object.scene.children[0];
 
-            mesh.material = SSRMaterial({ 
-                color: 0xffffff, 
-                // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
-                envMap: envmap,
-                roughness: 1,
-                metalness: 0,
-            });
-            mesh.castShadow = true; 
-            mesh.receiveShadow = true;
-            
-            mesh.scale.set(0.5, 0.5, 0.5);
-            mesh.position.set(0, -5, 0);
+            for(let i = 0; i < 3; i++) {
+                let nm = mesh.clone();
 
-            scene.add( mesh );
+                let color = new THREE.Color(1,1,1);
+                if(i === 0) color = new THREE.Color(1, 0.3, 0.365); 
+                if(i === 2) color = new THREE.Color(0.6, 1, 0.35); 
+
+                nm.material = SSRMaterial({ 
+                    color: color, 
+                    // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
+                    envMap: envmap,
+                    roughness: 1,
+                    metalness: 0,
+                });
+                nm.castShadow = true; 
+                nm.receiveShadow = true;
+
+                nm.scale.set(0.5, 0.5, 0.5);
+                nm.position.set(-20 + i * 10, -5, 0);
+    
+                scene.add( nm );
+            }
+
+
+            let sphere = new Mesh(
+                new SphereBufferGeometry(5, 20, 20),
+                new SSRMaterial({
+                    color: new THREE.Color(1, 0.3, 0.365), 
+                    // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
+                    envMap: envmap,
+                    roughness: 0.5,
+                    metalness: 0,
+                })
+            );
+            sphere.position.set(-8,0,-5);
+            scene.add(sphere);
         }
     );
 
