@@ -91,7 +91,7 @@ export default class SSR {
 			    precision highp int;
 
                 layout(location = 0) out vec4 out_SSRColor;
-			    layout(location = 1) out vec4 out_Uv;
+			    layout(location = 1) out vec4 out_SSRIntersection;
 
                 uniform sampler2D uPosition;
                 uniform sampler2D uNormal;
@@ -422,7 +422,10 @@ export default class SSR {
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
 
+                    vec4 intersectionPointAverage = vec4(0.0);
+                    float intersectionPointAverageSamples = 0.0; // I can't just reference "samples" since some sample might fail
                     int samples = ${samples};
+                    int effectiveSamples = samples;
                     for(int s = 0; s < samples; s++) {
                         vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness);
                         reflDir = normalize(reflDir);
@@ -536,9 +539,13 @@ export default class SSR {
                             mult /= max(pdf, 0.0000000000001);
 
                             intersected = true;
+                            intersectionPointAverage += vec4(p2, 1.0);
+                            intersectionPointAverageSamples += 1.0;
                         } else {
                             // intersection is invalid
                             // mult = vec3(0.0);
+                            intersectionPointAverage += vec4(ro + rd * 100.0, 1.0);
+                            intersectionPointAverageSamples += 1.0;
                         }
                     
 
@@ -549,14 +556,15 @@ export default class SSR {
                             float t = (accum * 0.1) * 0.95;
                             // t = 0.0;
 
-                            vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
-                            float specDot = dot(oldSpecularDir, specularReflectionDir);
+                            // vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
+                            // float specDot = dot(oldSpecularDir, specularReflectionDir);
 
                             // // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
                             // float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
                             // t *= 1.0 - dist;
 
-                            vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            vec3 oldSSR = texture2D(uOldSSRColor, taaBuffer.xy).xyz;
 
                             if(intersected) {
                                 vec3 newCol = mult * (1.0 - t) + oldSSR * t;
@@ -566,10 +574,12 @@ export default class SSR {
                                 // sum += vec4(oldSSR, 0.0);
 
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
-                                sum += vec4(envColor, 0.0);
+                                effectiveSamples -= 1;
+                                // sum += vec4(envColor, 0.0);
                             } else {
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
-                                sum += vec4(envColor, 0.0);
+                                effectiveSamples -= 1;
+                                // sum += vec4(envColor, 0.0);
                             }
                         } else {
                             if(intersected) {
@@ -580,8 +590,8 @@ export default class SSR {
 
                     sum /= float(samples);
 
-                    out_SSRColor = vec4(sum.xyz, 1.0);
-                    out_Uv       = vec4(specularReflectionDir, 1.0);
+                    out_SSRColor        = vec4(sum.xyz, 1.0);
+                    out_SSRIntersection = intersectionPointAverage / max(intersectionPointAverageSamples, 1.0);
                 }
             `,
             glslVersion: THREE.GLSL3,

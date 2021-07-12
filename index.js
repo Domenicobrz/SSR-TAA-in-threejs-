@@ -60,7 +60,7 @@ new RGBELoader()
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
-    ground.material.roughness = 0.2;
+    ground.material.roughness = 0.02;
     ground.material.metalness = 1;
     scene.add(ground);
 
@@ -131,7 +131,7 @@ new RGBELoader()
                     color: new THREE.Color(1, 0.3, 0.365), 
                     // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
                     envMap: envmap,
-                    roughness: 0.5,
+                    roughness: 0.01,
                     metalness: 0,
                 })
             );
@@ -213,7 +213,7 @@ function animate() {
 
 
     // TAA computation happens before updating normals and position RT
-    TAAProgram.computeMoment();
+    TAAProgram.computeMoment(SSRProgram.SSRRT.write.texture[1]);
     // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
 
     SSRBuffersProgram.compute(renderer, scene, camera);
@@ -228,6 +228,8 @@ function animate() {
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
+
+    // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
 
 
     requestAnimationFrame(animate);
