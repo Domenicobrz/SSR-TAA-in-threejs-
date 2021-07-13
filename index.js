@@ -60,7 +60,7 @@ new RGBELoader()
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
-    ground.material.roughness = 0.02;
+    ground.material.roughness = 0.25;
     ground.material.metalness = 1;
     scene.add(ground);
 
@@ -173,6 +173,8 @@ light2.position.set(16, 17, 5);
 // scene.add(light1, light2);
 
 let colorRT             = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.FloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+let oldPosRT            = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.FloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+let oldNormRT           = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.FloatType });
 
 let SSRBuffersProgram   = new SSRBuffers(innerWidth, innerHeight);
 let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position);
@@ -181,7 +183,9 @@ let SSRProgram          = new SSR(renderer, camera, controls,
     SSRBuffersProgram.GTextures.position, 
     SSRBuffersProgram.GTextures.albedo, 
     SSRBuffersProgram.GTextures.material, 
-    colorRT);
+    colorRT,
+    oldPosRT,
+    oldNormRT);
 let AtrousProgram       = new Atrous(renderer, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, SSRProgram.SSRRT);
 let blitProgram         = new Blit(renderer);
 
@@ -216,6 +220,9 @@ function animate() {
     TAAProgram.computeMoment(SSRProgram.SSRRT.write.texture[1]);
     // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
 
+    blitProgram.blit(SSRBuffersProgram.GBuffer.texture[0], oldNormRT);
+    blitProgram.blit(SSRBuffersProgram.GBuffer.texture[1], oldPosRT);
+
     SSRBuffersProgram.compute(renderer, scene, camera);
     // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
 
@@ -227,10 +234,6 @@ function animate() {
     SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui);
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
-
-
-    // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
-
 
     requestAnimationFrame(animate);
 }

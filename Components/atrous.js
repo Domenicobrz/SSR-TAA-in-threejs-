@@ -150,7 +150,7 @@ export default class Atrous {
     
             if(i === 0) {
                 this.material.uniforms.uN_phi.value = 0.1;
-                this.material.uniforms.uP_phi.value = 0.1;
+                this.material.uniforms.uP_phi.value = 10.1;
 
                 this.material.uniforms.uSSR.value = SSRtexture;
                 this.material.uniforms.uStep.value  = 1.0;

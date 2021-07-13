@@ -3,7 +3,7 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class SSR {
-    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT) {
+    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT, oldPosRT, oldNormRT) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
@@ -49,18 +49,22 @@ export default class SSR {
 
         this.material = new THREE.RawShaderMaterial({
             uniforms: {
-                uTAA:          { type: "t", value: null },
-                uOldSSRColor:  { type: "t", value: null },
-                uOldSSRUv:     { type: "t", value: null },
-                uPosition:     { type: "t", value: positionTexture },
-                uNormal:       { type: "t", value: normalTexture },
-                uAlbedo:       { type: "t", value: albedoTexture },
-                uMaterial:     { type: "t", value: materialTexture },
-                uColor:        { type: "t", value: colorRT.texture },
-                uEnvmap:       { type: "t", value: null },
-                uCameraPos:    { value: new THREE.Vector3(0,0,0) },
-                uCameraTarget: { value: new THREE.Vector3(0,0,0) },
-                uRandoms:      { value: new THREE.Vector4(0,0,0,0) },
+                uTAA:           { type: "t", value: null },
+                uOldSSRColor:   { type: "t", value: null },
+                uOldSSRUv:      { type: "t", value: null },
+                uOldPosition:   { type: "t", value: oldPosRT.texture },
+                uPosition:      { type: "t", value: positionTexture },
+                uOldNormal:     { type: "t", value: oldNormRT.texture },
+                uNormal:        { type: "t", value: normalTexture },
+                uAlbedo:        { type: "t", value: albedoTexture },
+                uMaterial:      { type: "t", value: materialTexture },
+                uColor:         { type: "t", value: colorRT.texture },
+                uEnvmap:        { type: "t", value: null },
+                uOldCameraPos:  { value: new THREE.Vector3(0,0,0) },
+                uCameraPos:     { value: new THREE.Vector3(0,0,0) },
+                uCameraTarget:  { value: new THREE.Vector3(0,0,0) },
+                uRandoms:       { value: new THREE.Vector4(0,0,0,0) },
+                uOldViewMatrix: { value: new THREE.Matrix4() },
             },
             
             vertexShader: `
@@ -75,6 +79,7 @@ export default class SSR {
 
                 out vec2 vUv;
                 out mat4 vProjViewMatrix;
+                out mat4 vProjectionMatrix;
                 out mat4 vViewMatrix;
 
                 void main() {
@@ -83,6 +88,7 @@ export default class SSR {
 
                     vProjViewMatrix = projectionMatrix * viewMatrix;
                     vViewMatrix = viewMatrix;
+                    vProjectionMatrix = projectionMatrix;
                 }
             `,
 
@@ -93,7 +99,9 @@ export default class SSR {
                 layout(location = 0) out vec4 out_SSRColor;
 			    layout(location = 1) out vec4 out_SSRIntersection;
 
+                uniform sampler2D uOldPosition;
                 uniform sampler2D uPosition;
+                uniform sampler2D uOldNormal;
                 uniform sampler2D uNormal;
                 uniform sampler2D uAlbedo;
                 uniform sampler2D uMaterial;
@@ -104,10 +112,13 @@ export default class SSR {
                 uniform sampler2D uEnvmap;
 
                 uniform vec3 uCameraPos;
+                uniform vec3 uOldCameraPos;
                 uniform vec3 uCameraTarget;
                 uniform vec4 uRandoms;
+                uniform mat4 uOldViewMatrix;
 
                 in vec2 vUv;
+                in mat4 vProjectionMatrix;
                 in mat4 vProjViewMatrix;
                 in mat4 vViewMatrix;
 
@@ -120,6 +131,23 @@ export default class SSR {
                 #ifndef saturate
                     #define saturate(a) clamp( a, 0.0, 1.0 )
                 #endif
+
+                vec3 proj_point_in_plane(vec3 p, vec3 v0, vec3 n, out float d) {
+                    d = dot(n, p - v0);
+                    return p - (n * d);
+                }
+                   
+                vec3 find_reflection_incident_point(vec3 p0, vec3 p1, vec3 v0, vec3 n) {
+                    float d0 = 0.0;
+                    float d1 = 0.0;
+                    vec3 proj_p0 = proj_point_in_plane(p0, v0, n, d0);
+                    vec3 proj_p1 = proj_point_in_plane(p1, v0, n, d1);
+        
+                    if(d0 < d1)
+                        return (proj_p0 - proj_p1) * d1/(d0+d1) + proj_p1;
+                    else
+                        return (proj_p1 - proj_p0) * d0/(d0+d1) + proj_p0;
+                }
 
                 float depthBufferAtP(vec3 p) {
                     vec4 projP = vProjViewMatrix * vec4(p, 1.0);
@@ -532,8 +560,8 @@ export default class SSR {
                             vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
                             float pdf = samplePDF(rd, -viewDir, norm, roughness);
 
-                            brdf = clamp(brdf, 0.00001, 10000.0);
-                            pdf  = clamp(pdf,  0.00001, 10000.0);
+                            brdf = clamp(brdf, 0.00001, 1000.0);
+                            pdf  = clamp(pdf,  0.00001, 1000.0);
 
                             mult *= brdf;
                             mult /= max(pdf, 0.0000000000001);
@@ -563,8 +591,39 @@ export default class SSR {
                             // float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
                             // t *= 1.0 - dist;
 
+                            // note that all of this is not perfect, since p2 should really be the "old" intersection
+                            // point, but since we don't know it's moveDelta, we can't reproject the previous
+                            // position so this will cause inaccurate results  
+                            vec3 oldWorldPosition = texture2D(uOldPosition, vUv + taaBuffer.xy).xyz;
+                            vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
+                            vec3 oldCameraPos = uOldCameraPos;
+                            vec3 ssrp = find_reflection_incident_point(
+                                 oldCameraPos, p2, oldWorldPosition, oldNormal);
+
+                            if(!intersected) {
+                                ssrp = find_reflection_incident_point(
+                                    oldCameraPos, p, oldWorldPosition, oldNormal);
+
+                                // ssrp = find_reflection_incident_point(
+                                //     oldCameraPos, ro + specularReflectionDir * 100.0, oldWorldPosition, oldNormal);
+                            }
+                            
+                            vec4 np = vProjectionMatrix * uOldViewMatrix * vec4(ssrp, 1.0);
+                            np.xyzw /= np.w;
+                            np.xy = np.xy * 0.5 + 0.5;
+
+                            if(np.x < 0.0 || np.x > 1.0 || np.y < 0.0 || np.y > 1.0) {
+                                np.xy = vUv + taaBuffer.xy;
+                            }
+
+
+                            // "oldSSR" non rappresenta più il vecchio ssr color, perchè ogni volta
+                            // prendiamo il colore da un pixel diverso (perchè il ground è rough)
+                            // prima invece prendevamo sempre "lo stesso" vecchio pixel, dato dalla proiezione
+                            // also non considerare tutto quello che ho detto per vero, questa è una supposizione
+                            vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz;
+
                             // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-                            vec3 oldSSR = texture2D(uOldSSRColor, taaBuffer.xy).xyz;
 
                             if(intersected) {
                                 vec3 newCol = mult * (1.0 - t) + oldSSR * t;
@@ -574,12 +633,12 @@ export default class SSR {
                                 // sum += vec4(oldSSR, 0.0);
 
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
-                                effectiveSamples -= 1;
-                                // sum += vec4(envColor, 0.0);
+                                // effectiveSamples -= 1;
+                                sum += vec4(envColor, 0.0);
                             } else {
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
-                                effectiveSamples -= 1;
-                                // sum += vec4(envColor, 0.0);
+                                // effectiveSamples -= 1;
+                                sum += vec4(envColor, 0.0);
                             }
                         } else {
                             if(intersected) {
@@ -688,6 +747,9 @@ export default class SSR {
 
         this.sceneCamera = sceneCamera;
         this.controls = controls;
+
+        this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
+        this.lastCameraPos = this.sceneCamera.position.clone();
     }
 
     compute(TAART, envmap) {
@@ -695,6 +757,8 @@ export default class SSR {
         this.renderer.setRenderTarget(this.SSRRT.write);
 
         this.mesh.material = this.material;
+        this.material.uniforms.uOldViewMatrix.value = this.lastViewMatrixInverse;
+        this.material.uniforms.uOldCameraPos.value.set(this.lastCameraPos.x, this.lastCameraPos.y, this.lastCameraPos.z);
         this.material.uniforms.uCameraPos.value    = this.sceneCamera.position;
         this.material.uniforms.uCameraTarget.value = this.controls.target;
         this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
@@ -716,6 +780,10 @@ export default class SSR {
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);
+
+
+        this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
+        this.lastCameraPos = this.sceneCamera.position.clone();
     }
 }
 
