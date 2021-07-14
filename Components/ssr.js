@@ -406,6 +406,106 @@ export default class SSR {
                     return col;
                 }
 
+                bool intersect(
+                    vec3 ro, vec3 rd, 
+                    out vec3 intersectionP,
+                    out vec3 lastP) 
+                {
+                    bool jitter = false;
+                    float startingStep = 0.05;
+                    float stepMult = 1.15;
+                    const int steps = 40;
+                    const int binarySteps = 5;
+
+                    float maxIntersectionDepthDistance = 1.5;
+                    float step = startingStep;
+
+                    vec3 p = ro;
+                    bool intersected = false;
+                    bool possibleIntersection = false;
+                    float lastRecordedDepthBuffThatIntersected;
+
+                    vec3 p1, p2;
+                    for(int i = 0; i < steps; i++) {
+                        vec3 initialP = p;
+
+                        // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
+                        float jittA = 0.5 + rand(p) * 0.5;
+                        if(!jitter) jittA = 1.0;
+                        float jittB = 1.0 - jittA;
+
+                        p += rd * step * jittA;
+
+                        vec4 projP = vProjViewMatrix * vec4(p, 1.0);
+                        vec2 pNdc = (projP / projP.w).xy;
+                        vec2 pUv  = pNdc * 0.5 + 0.5;
+                        float depthAtPosBuff = texture2D(uPosition, pUv).w;
+
+                        if(depthAtPosBuff == 0.0) {
+                            depthAtPosBuff = 9999999.0;
+                        } 
+
+                        // out of screen bounds condition
+                        if(pUv.x < 0.0 || pUv.x > 1.0 || pUv.y < 0.0 || pUv.y > 1.0) {
+                            break;
+                        }
+
+                        float depthAtPointP = - (vViewMatrix * vec4(p, 1.0)).z;
+                        if(depthAtPointP > depthAtPosBuff) {
+                            // intersection found!
+                            p1 = initialP;
+                            p2 = p;
+                            lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
+                            possibleIntersection = true;
+
+                            break;
+                        }
+
+                        p += rd * step * jittB;
+                        step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
+                    }
+
+
+
+                    // stranamente mi trovo a dover spostare la binary search fuori dal primo loop, altrimenti
+                    // per qualche motivo esoterico la gpu inizia a prendere fuoco
+    
+                    // ******** binary search start *********
+                    for(int j = 0; j < binarySteps; j++) {
+                        vec3 mid = (p1 + p2) * 0.5;
+                        float depthAtMid = - (vViewMatrix * vec4(mid, 1.0)).z;
+                        float depthAtPosBuff = depthBufferAtP(mid);
+                        if(depthAtMid > depthAtPosBuff) {
+                            p2 = (p1 + p2) * 0.5;
+                            // we need to save this value inside this if-statement otherwise if it was outside and above this
+                            // if statement, it would be possible that it's value would be very large (e.g. if p1 intersected the "background"
+                            // since in that case positionBufferAtP() returns viewDir * 99999999.0)
+                            // and if that value is very large, it can create artifacts when evaluating this condition:
+                            // ---> if(abs(distanceFromCameraAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) 
+                            // to be honest though, these artifacts only appear for largerish values of maxIntersectionDepthDistance
+                            lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
+                        } else {
+                            p1 = (p1 + p2) * 0.5;
+                        }
+                    }
+                    // ******** binary search end   *********
+
+
+                    intersectionP = p2;
+                    lastP = p;
+
+                    // use p2 as the intersection point
+                    float depthAtP2 = - (vViewMatrix * vec4(p2, 1.0)).z;
+                    if( possibleIntersection &&   // without using possibleIntersection apparently it's possible that lastRecordedDepthBuffThatIntersected
+                                                  // ends up being valid thanks to the binary search, and that causes all sorts of troubles
+                        abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
+                        // intersection validated
+                        intersected = true;
+                    }
+
+                    return intersected;
+                }
+
                 void main() {
                     vec4 posTexel = texture2D(uPosition, vUv);
                     vec3 pos      = posTexel.xyz;
@@ -465,87 +565,13 @@ export default class SSR {
                         float maxIntersectionDepthDistance = 1.5;
                         mult *= max(dot(rd, norm), 0.0);
     
-                        float step = startingStep;
-    
-                        vec3 p = ro;
-                        bool intersected = false;
-    
-                        vec3 p1, p2;
-                        float lastRecordedDepthBuffThatIntersected;
-                        bool possibleIntersection = false;
-                        for(int i = 0; i < steps; i++) {
-                            vec3 initialP = p;
 
-                            // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
-                            float jittA = 0.5 + rand(p) * 0.5;
-                            if(!jitter) jittA = 1.0;
-                            float jittB = 1.0 - jittA;
-    
-                            p += rd * step * jittA;
-    
-                            vec4 projP = vProjViewMatrix * vec4(p, 1.0);
-                            vec2 pNdc = (projP / projP.w).xy;
-                            vec2 pUv  = pNdc * 0.5 + 0.5;
-                            float depthAtPosBuff = texture2D(uPosition, pUv).w;
-                            
-    
-                            if(depthAtPosBuff == 0.0) {
-                                depthAtPosBuff = 9999999.0;
-                            } 
-    
-                            // out of screen bounds condition
-                            if(pUv.x < 0.0 || pUv.x > 1.0 || pUv.y < 0.0 || pUv.y > 1.0) {
-                                // out_SSRColor = vec4(1.0, 0.0, 0.0, 1.0);
-                                // return;
-                                break;
-                            }
-    
-                            float depthAtPointP = - (vViewMatrix * vec4(p, 1.0)).z;
-                            if(depthAtPointP > depthAtPosBuff) {
-                                // intersection found!
-                                p1 = initialP;
-                                p2 = p;
-                                lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
-                                possibleIntersection = true;
+                        vec3 p2;
+                        vec3 lastP;
+                        bool intersected = intersect(ro, rd, p2, lastP);
 
-                                break;
-                            }
-    
-                            p += rd * step * jittB;
-                            step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
-                        }
-    
-    
-                        // stranamente mi trovo a dover spostare la binary search fuori dal primo loop, altrimenti
-                        // per qualche motivo esoterico la gpu inizia a prendere fuoco
-        
-                        // ******** binary search start *********
-                        for(int j = 0; j < binarySteps; j++) {
-                            vec3 mid = (p1 + p2) * 0.5;
-                            float depthAtMid = - (vViewMatrix * vec4(mid, 1.0)).z;
-                            float depthAtPosBuff = depthBufferAtP(mid);
-                            if(depthAtMid > depthAtPosBuff) {
-                                p2 = (p1 + p2) * 0.5;
-                                // we need to save this value inside this if-statement otherwise if it was outside and above this
-                                // if statement, it would be possible that it's value would be very large (e.g. if p1 intersected the "background"
-                                // since in that case positionBufferAtP() returns viewDir * 99999999.0)
-                                // and if that value is very large, it can create artifacts when evaluating this condition:
-                                // ---> if(abs(distanceFromCameraAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) 
-                                // to be honest though, these artifacts only appear for largerish values of maxIntersectionDepthDistance
-                                lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
-                            } else {
-                                p1 = (p1 + p2) * 0.5;
-                            }
-                        }
-                        // ******** binary search end   *********
-                       
-    
-                        // use p2 as the intersection point
-                        float depthAtP2 = - (vViewMatrix * vec4(p2, 1.0)).z;
                         vec2 p2Uv;
-                        if( possibleIntersection &&   // without using possibleIntersection apparently it's possible that lastRecordedDepthBuffThatIntersected
-                                                      // ends up being valid thanks to the binary search, and that causes all sorts of troubles
-                            abs(depthAtP2 - lastRecordedDepthBuffThatIntersected) < maxIntersectionDepthDistance) {
+                        if(intersected) {
                             // intersection validated
                             vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
                             p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
@@ -566,7 +592,6 @@ export default class SSR {
                             mult *= brdf;
                             mult /= max(pdf, 0.0000000000001);
 
-                            intersected = true;
                             intersectionPointAverage += vec4(p2, 1.0);
                             intersectionPointAverageSamples += 1.0;
                         } else {
@@ -597,12 +622,16 @@ export default class SSR {
                             vec3 oldWorldPosition = texture2D(uOldPosition, vUv + taaBuffer.xy).xyz;
                             vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
                             vec3 oldCameraPos = uOldCameraPos;
+
+                            // vec3 repr_p;
+                            // intersect(ro, specularReflectionDir, repr_p);
+
                             vec3 ssrp = find_reflection_incident_point(
                                  oldCameraPos, p2, oldWorldPosition, oldNormal);
 
                             if(!intersected) {
                                 ssrp = find_reflection_incident_point(
-                                    oldCameraPos, p, oldWorldPosition, oldNormal);
+                                    oldCameraPos, lastP, oldWorldPosition, oldNormal);
 
                                 // ssrp = find_reflection_incident_point(
                                 //     oldCameraPos, ro + specularReflectionDir * 100.0, oldWorldPosition, oldNormal);
@@ -622,6 +651,9 @@ export default class SSR {
                             // prima invece prendevamo sempre "lo stesso" vecchio pixel, dato dalla proiezione
                             // also non considerare tutto quello che ho detto per vero, questa è una supposizione
                             vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz;
+
+                            oldSSR *= 0.5;
+                            oldSSR += texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * 0.5;
 
                             // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
