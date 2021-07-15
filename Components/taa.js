@@ -88,7 +88,7 @@ export default class TAA {
 
                 vec2 moveDelta  = ndcOldPos.xy - ndcNewPos.xy;
                 // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
-                // float dist = clamp(length(moveDelta) / 0.05, 0.0, 1.0);
+                // float dist = clamp(length(moveDelta) / 0.085, 0.0, 1.0);
                 // newAccum *= 1.0 - dist;
 
 
@@ -98,7 +98,7 @@ export default class TAA {
                 // but a previous rotation could have changed the normal enough so that the test fails
 
 
-                if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
+                // if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
                 // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
 
                 gl_FragColor = vec4(moveDelta, newAccum, 1.0);

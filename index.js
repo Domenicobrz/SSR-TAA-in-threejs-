@@ -45,7 +45,8 @@ let pmremGenerator = new THREE.PMREMGenerator( renderer );
 let envmapEqui;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
-.load("assets/shanghai_bund_2k.hdr", function ( texture, textureData ) {
+.load("assets/herkulessaulen_2k.hdr", function ( texture, textureData ) {
+// .load("assets/shanghai_bund_2k.hdr", function ( texture, textureData ) {
 // .load("assets/envmap.hdr", function ( texture, textureData ) {
     envmapEqui = texture;
     let envmap = pmremGenerator.fromEquirectangular( texture ).texture;
@@ -55,14 +56,14 @@ new RGBELoader()
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
     let ground = new THREE.Mesh(
         new THREE.BoxBufferGeometry(500, 2, 500), 
-        SSRMaterial({ color: 0xffffff, envMap: envmap })
+        SSRMaterial({ color: 0xffffff, envMap: envmap, map: testTexture })
     );
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
     ground.material.roughness = 0.25;
-    ground.material.metalness = 1;
+    ground.material.metalness = 0.985;
     scene.add(ground);
 
     // let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );

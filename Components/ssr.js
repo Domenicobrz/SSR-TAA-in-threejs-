@@ -8,7 +8,7 @@ export default class SSR {
         renderer.getSize(sizeVector);
       
         let postReflMult = "1.0";
-        let samples      = "1";
+        let samples      = "2";
         let F0           = "1.0";
 
         let rts = [];
@@ -606,7 +606,8 @@ export default class SSR {
                         vec4 fragCol = vec4(0.0);
     
                         if(useTAA) {
-                            float t = (accum * 0.1) * 0.95;
+                            float t = (accum * 0.1) * 0.98;
+                            // float t = (accum * 0.1) * 0.95;
                             // t = 0.0;
 
                             // vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
@@ -659,9 +660,19 @@ export default class SSR {
                                     oldSSR1 += texture2D(uOldSSRColor, np.xy + vec2(0.0015 * float(i), 0.0015 * float(j))).xyz * (1.0 / 9.0);
                                 }
                             }
-                            float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.25, 0.5);
+
+                            // vec3 oldSSR2;
+                            // for(int i = -1; i <= 1; i++) {
+                            //     for(int j = -1; j <= 1; j++) {
+                            //         oldSSR2 += texture2D(uOldSSRColor, vUv + taaBuffer.xy + vec2(0.0015 * float(i), 0.0015 * float(j))).xyz * (1.0 / 9.0);
+                            //     }
+                            // }
+
+                            float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.1, 0.6);
+                            // float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.25, 0.5);
                             // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
                             vec3 oldSSR = oldSSR1 * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
+                            // vec3 oldSSR = oldSSR1 * det + oldSSR2 * (1.0 - det);
 
 
 
