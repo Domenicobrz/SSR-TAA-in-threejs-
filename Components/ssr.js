@@ -624,7 +624,7 @@ export default class SSR {
                             vec3 oldCameraPos = uOldCameraPos;
 
                             // vec3 repr_p;
-                            // intersect(ro, specularReflectionDir, repr_p);
+                            // intersect(ro, specularReflectionDir, repr_p, lastP);
 
                             vec3 ssrp = find_reflection_incident_point(
                                  oldCameraPos, p2, oldWorldPosition, oldNormal);
@@ -650,10 +650,20 @@ export default class SSR {
                             // prendiamo il colore da un pixel diverso (perchè il ground è rough)
                             // prima invece prendevamo sempre "lo stesso" vecchio pixel, dato dalla proiezione
                             // also non considerare tutto quello che ho detto per vero, questa è una supposizione
-                            vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz;
+                            // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * 0.5 + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * 0.5;
 
-                            oldSSR *= 0.5;
-                            oldSSR += texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * 0.5;
+
+                            vec3 oldSSR1;
+                            for(int i = -1; i <= 1; i++) {
+                                for(int j = -1; j <= 1; j++) {
+                                    oldSSR1 += texture2D(uOldSSRColor, np.xy + vec2(0.0015 * float(i), 0.0015 * float(j))).xyz * (1.0 / 9.0);
+                                }
+                            }
+                            float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.25, 0.5);
+                            // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
+                            vec3 oldSSR = oldSSR1 * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
+
+
 
                             // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
