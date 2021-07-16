@@ -25,7 +25,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
 renderer.setSize( innerWidth, innerHeight );
 renderer.toneMapping    = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1;
+renderer.toneMappingExposure = 1.6;
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.shadowMap.autoUpdate = false;
 document.body.appendChild(renderer.domElement);
@@ -45,7 +45,9 @@ let pmremGenerator = new THREE.PMREMGenerator( renderer );
 let envmapEqui;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
-.load("assets/herkulessaulen_2k.hdr", function ( texture, textureData ) {
+.load("assets/ballroom_2k.hdr", function ( texture, textureData ) {
+// .load("assets/peppermint_powerplant_2k.hdr", function ( texture, textureData ) {
+// .load("assets/herkulessaulen_2k.hdr", function ( texture, textureData ) {
 // .load("assets/shanghai_bund_2k.hdr", function ( texture, textureData ) {
 // .load("assets/envmap.hdr", function ( texture, textureData ) {
     envmapEqui = texture;
@@ -56,7 +58,7 @@ new RGBELoader()
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
     let ground = new THREE.Mesh(
         new THREE.BoxBufferGeometry(500, 2, 500), 
-        SSRMaterial({ color: 0xffffff, envMap: envmap, map: testTexture })
+        SSRMaterial({ color: 0xffffff, envMap: envmap, /*map: testTexture*/ })
     );
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
     ground.position.set(0, -5, 0);
@@ -64,6 +66,8 @@ new RGBELoader()
     ground.receiveShadow = true; 
     ground.material.roughness = 0.25;
     ground.material.metalness = 0.985;
+    // ground.material.roughness = 1;
+    // ground.material.metalness = 0;
     scene.add(ground);
 
     // let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
@@ -135,6 +139,7 @@ new RGBELoader()
                     envMap: envmap,
                     roughness: 0.01,
                     metalness: 0,
+                    baseF0: 1,
                 })
             );
             sphere.position.set(-8,0,-5);

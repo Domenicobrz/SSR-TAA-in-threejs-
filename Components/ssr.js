@@ -9,7 +9,6 @@ export default class SSR {
       
         let postReflMult = "1.0";
         let samples      = "2";
-        let F0           = "1.0";
 
         let rts = [];
         for(let i = 0; i < 2; i++) {
@@ -401,6 +400,9 @@ export default class SSR {
                     // vec3 radianceClamp = vec3(100.0);
                     vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
                     // vec3 col = RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz;
+
+                    // vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz) * 0.7 + RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz * 0.3;
+
                     // col = clamp(col, vec3(0.0), vec3(radianceClamp));
                     // col = pow(col, vec3(2.2)); 
                     return col;
@@ -530,6 +532,7 @@ export default class SSR {
 
                     float roughness = material.x;
                     float metalness = material.y;
+                    float baseF0    = material.z;
 
 
                     // float startingStep = 0.05;
@@ -570,6 +573,9 @@ export default class SSR {
                         vec3 lastP;
                         bool intersected = intersect(ro, rd, p2, lastP);
 
+                        vec3 F0 = vec3(baseF0);
+                        F0 = mix(F0, albedo.xyz, metalness);
+
                         vec2 p2Uv;
                         if(intersected) {
                             // intersection validated
@@ -578,9 +584,6 @@ export default class SSR {
                             vec3 color = texture2D(uColor, p2Uv).xyz;
                             // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
                             mult *= color;
-
-                            vec3 F0 = vec3(${F0});
-                            F0 = mix(F0, albedo.xyz, metalness);
                             
                             // apply pdf and brdf
                             vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
@@ -678,6 +681,9 @@ export default class SSR {
 
                             // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
+
+                            vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
+
                             if(intersected) {
                                 vec3 newCol = mult * (1.0 - t) + oldSSR * t;
                                 sum += vec4(newCol, 0.0);
@@ -687,11 +693,11 @@ export default class SSR {
 
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
-                                sum += vec4(envColor, 0.0);
+                                sum += vec4(envColor * fresnel, 0.0);
                             } else {
                                 vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
-                                sum += vec4(envColor, 0.0);
+                                sum += vec4(envColor * fresnel, 0.0);
                             }
                         } else {
                             if(intersected) {
@@ -759,7 +765,8 @@ export default class SSR {
                     vec3 viewDir = normalize(pos - uCameraPos);
 
                     // float metalness = material.y;
-                    // vec3 F0 = vec3(${F0});
+                    // float baseF0 = material.z;
+                    // vec3 F0 = vec3(baseF0);
                     // F0 = mix(F0, albedo.xyz, metalness);
 
                     // vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
@@ -842,6 +849,7 @@ export default class SSR {
 
 export let SSRMaterial = function(args) {
     let baseMaterial = new THREE.MeshStandardMaterial(args);
+    baseMaterial.baseF0 = args.baseF0;
 
     // remove envmap reflections from this material (we could also remove analytical lights but we decided to keep them for now)
     baseMaterial.onBeforeCompile = (shader) => {
