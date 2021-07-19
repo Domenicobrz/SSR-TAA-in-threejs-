@@ -106,20 +106,7 @@ export default class TAA {
                 // // gl_FragColor = vec4(newAccum / 20.0, 0.0, newAccum, 1.0);
 
 
-                // WE DON'T HAVE TO DEAL WITH THE "OLD" INTERSECTION POINT, BUT WITH THE NEW ONE!
-                // WE DON'T HAVE TO DEAL WITH THE "OLD" INTERSECTION POINT, BUT WITH THE NEW ONE!
-                // WE DON'T HAVE TO DEAL WITH THE "OLD" INTERSECTION POINT, BUT WITH THE NEW ONE!
-                // WE DON'T HAVE TO DEAL WITH THE "OLD" INTERSECTION POINT, BUT WITH THE NEW ONE!
 
-                // here's the plan:
-                // 1. we'll COPY/blit the old position/normal buffers in two textures, before they get updated by SSRBuffers
-                // 2. here in taa we'll save the standard moveDelta moment move
-                // 3. on ssr, we'll get the new intersection point
-                // 4. we'll also get the moveDelta uvs, which will make it possible to get back the two old pos/norm buffers
-                // 5. such that we can get: the old v0 position / normal, the new intersection point, and the old camera position
-                // 6. now we can compute the proper reprojection (hopefully)
-                // 7. also remember that since this is a plane-expansion thing, it's possible that the point that I get out of it
-                //    is projected outside of the [0,1] range so I need to check for that and possibly.. well.. invalidate the accum
 
 
                 // vec3 oldCameraPos = uOldCameraPos;

@@ -696,13 +696,13 @@ export default class SSR {
                                 // this one makes a cool effect too
                                 // sum += vec4(oldSSR, 0.0);
 
-                                vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
+                                vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
-                                sum += vec4(envColor * fresnel, 0.0);
+                                sum += vec4(envColor, 0.0);
                             } else {
-                                vec3 envColor = getEnvmapRadiance(rd) * (1.0 - t) + oldSSR * t; 
+                                vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
-                                sum += vec4(envColor * fresnel, 0.0);
+                                sum += vec4(envColor, 0.0);
                             }
                         } else {
                             if(intersected) {
