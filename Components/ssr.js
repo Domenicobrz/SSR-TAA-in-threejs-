@@ -3,7 +3,7 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class SSR {
-    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT, oldPosRT, oldNormRT) {
+    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT, oldPosRT, oldNormRT, blueNoiseTexture) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
       
@@ -48,22 +48,25 @@ export default class SSR {
 
         this.material = new THREE.RawShaderMaterial({
             uniforms: {
-                uTAA:           { type: "t", value: null },
-                uOldSSRColor:   { type: "t", value: null },
-                uOldSSRUv:      { type: "t", value: null },
-                uOldPosition:   { type: "t", value: oldPosRT.texture },
-                uPosition:      { type: "t", value: positionTexture },
-                uOldNormal:     { type: "t", value: oldNormRT.texture },
-                uNormal:        { type: "t", value: normalTexture },
-                uAlbedo:        { type: "t", value: albedoTexture },
-                uMaterial:      { type: "t", value: materialTexture },
-                uColor:         { type: "t", value: colorRT.texture },
-                uEnvmap:        { type: "t", value: null },
-                uOldCameraPos:  { value: new THREE.Vector3(0,0,0) },
-                uCameraPos:     { value: new THREE.Vector3(0,0,0) },
-                uCameraTarget:  { value: new THREE.Vector3(0,0,0) },
-                uRandoms:       { value: new THREE.Vector4(0,0,0,0) },
-                uOldViewMatrix: { value: new THREE.Matrix4() },
+                uTAA:            { type: "t", value: null },
+                uOldSSRColor:    { type: "t", value: null },
+                uOldSSRUv:       { type: "t", value: null },
+                uOldPosition:    { type: "t", value: oldPosRT.texture },
+                uPosition:       { type: "t", value: positionTexture },
+                uOldNormal:      { type: "t", value: oldNormRT.texture },
+                uNormal:         { type: "t", value: normalTexture },
+                uAlbedo:         { type: "t", value: albedoTexture },
+                uMaterial:       { type: "t", value: materialTexture },
+                uColor:          { type: "t", value: colorRT.texture },
+                uEnvmap:         { type: "t", value: null },
+                uOldCameraPos:   { value: new THREE.Vector3(0,0,0) },
+                uCameraPos:      { value: new THREE.Vector3(0,0,0) },
+                uCameraTarget:   { value: new THREE.Vector3(0,0,0) },
+                uRandoms:        { value: new THREE.Vector4(0,0,0,0) },
+                uTime:           { value: 0 },
+                uOldViewMatrix:  { value: new THREE.Matrix4() },
+                uBlueNoise:      { type: "t", value: blueNoiseTexture },
+                uBlueNoiseIndex: { value: new THREE.Vector4(0,0,0,0) },
             },
             
             vertexShader: `
@@ -109,7 +112,10 @@ export default class SSR {
                 uniform sampler2D uOldSSRColor;
                 uniform sampler2D uOldSSRUv;
                 uniform sampler2D uEnvmap;
+                uniform sampler2D uBlueNoise;
 
+                uniform float uTime;
+                uniform vec4 uBlueNoiseIndex;
                 uniform vec3 uCameraPos;
                 uniform vec3 uOldCameraPos;
                 uniform vec3 uCameraTarget;
@@ -180,8 +186,18 @@ export default class SSR {
                 // }
                 
                 vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness) {
-                    float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
-                    float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
+                    // float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
+                    // float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
+
+                    // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + mod(uTime * 20.0, 100.0) + uRandoms.xy * 589.79, 512.0) / 512.0);
+                    // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + uRandoms.xy * 5809.79 + float(isample) * 19.77, 512.0) / 512.0);
+                    vec2 blue_uvs = vec2((gl_FragCoord.xy + vec2(uBlueNoiseIndex.x, 0.0) + float(isample) * 19.77) / 512.0);
+                    // blue_uvs = clamp(blue_uvs, vec2(0.0), vec2(0.99));
+                    vec4 blue_noise = texture2D(uBlueNoise, blue_uvs);
+                    
+                    float r0 = blue_noise.x;
+                    float r1 = blue_noise.y;
+
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
@@ -535,17 +551,6 @@ export default class SSR {
                     float baseF0    = material.z;
 
 
-                    // float startingStep = 0.05;
-                    // float stepMult = 1.25;
-                    // const int steps = 40;
-                    // const int binarySteps = 7;
-
-                    bool jitter = false;
-                    float startingStep = 0.05;
-                    float stepMult = 1.15;
-                    const int steps = 40;
-                    const int binarySteps = 5;
-
                     vec4 taaBuffer = texture2D(uTAA, vUv);
                     vec2 oldUvs    = taaBuffer.xy;
                     float accum    = min(taaBuffer.z, 10.0);
@@ -609,8 +614,8 @@ export default class SSR {
                         vec4 fragCol = vec4(0.0);
     
                         if(useTAA) {
-                            float t = (accum * 0.1) * 0.98;
-                            // float t = (accum * 0.1) * 0.95;
+                            // float t = (accum * 0.1) * 0.98;
+                            float t = (accum * 0.1) * 0.92;
                             // t = 0.0;
 
                             // vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
@@ -810,6 +815,9 @@ export default class SSR {
 
         this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
         this.lastCameraPos = this.sceneCamera.position.clone();
+
+        this.clock = new THREE.Clock();
+        this.blueNoiseIndex = new THREE.Vector4(0,0,0,0);
     }
 
     compute(TAART, envmap) {
@@ -826,6 +834,10 @@ export default class SSR {
         this.material.uniforms.uTAA.value     = TAART;
         this.material.uniforms.uEnvmap.value  = envmap;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
+        this.material.uniforms.uTime.value = this.clock.getElapsedTime();
+        // this.blueNoiseIndex.setX(++this.blueNoiseIndex.x % 512);
+        this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
+        this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);

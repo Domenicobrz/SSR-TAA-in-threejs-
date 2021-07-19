@@ -39,7 +39,10 @@ clock.start();
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
 let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
 // let texture;
-
+let blueNoise512 = new THREE.TextureLoader().load("assets/blue_noise_rgb_512.png", (texture) => {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+});
 
 let pmremGenerator = new THREE.PMREMGenerator( renderer );
 let envmapEqui;
@@ -192,7 +195,8 @@ let SSRProgram          = new SSR(renderer, camera, controls,
     SSRBuffersProgram.GTextures.material, 
     colorRT,
     oldPosRT,
-    oldNormRT);
+    oldNormRT,
+    blueNoise512);
 let AtrousProgram       = new Atrous(renderer, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, SSRProgram.SSRRT);
 let blitProgram         = new Blit(renderer);
 
