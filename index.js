@@ -246,6 +246,9 @@ function animate() {
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
+    // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+
+
     requestAnimationFrame(animate);
 }
 

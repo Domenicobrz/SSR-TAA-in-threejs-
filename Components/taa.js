@@ -98,7 +98,7 @@ export default class TAA {
                 // but a previous rotation could have changed the normal enough so that the test fails
 
 
-                // if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
+                if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
                 // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
 
                 gl_FragColor = vec4(moveDelta, newAccum, 1.0);
