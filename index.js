@@ -13,6 +13,7 @@ import SSRBuffers from "./Components/ssrBuffers";
 import { defaultWhiteTexture } from "./Components/defaultTextures";
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { Mesh, SphereBufferGeometry } from "three";
+import * as dat from 'dat.gui';
 
 let scene = new THREE.Scene();
 
@@ -36,6 +37,10 @@ controls.target.set(0,0,0);
 let clock = new THREE.Clock();
 clock.start();
 
+let guiControls = {
+    groundRoughness: 0.25,
+};
+
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
 let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
 // let texture;
@@ -46,6 +51,7 @@ let blueNoise512 = new THREE.TextureLoader().load("assets/blue_noise_rgb_512.png
 
 let pmremGenerator = new THREE.PMREMGenerator( renderer );
 let envmapEqui;
+let ground;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
 .load("assets/ballroom_2k.hdr", function ( texture, textureData ) {
@@ -59,7 +65,7 @@ new RGBELoader()
     scene.background = envmap;
 
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
-    let ground = new THREE.Mesh(
+    ground = new THREE.Mesh(
         new THREE.BoxBufferGeometry(500, 2, 500), 
         SSRMaterial({ color: 0xffffff, envMap: envmap, /*map: testTexture*/ })
     );
@@ -67,7 +73,7 @@ new RGBELoader()
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
-    ground.material.roughness = 0.25;
+    ground.material.roughness = guiControls.groundRoughness;
     ground.material.metalness = 0.985;
     // ground.material.roughness = 1;
     // ground.material.metalness = 0;
@@ -227,6 +233,11 @@ function animate() {
 
 
 
+    // update GUI
+    if(ground) ground.material.roughness = guiControls.groundRoughness;
+
+
+
     // TAA computation happens before updating normals and position RT
     TAAProgram.computeMoment(SSRProgram.SSRRT.write.texture[1]);
     // blitProgram.blit(TAAProgram.momentMoveRT.write.texture, null);
@@ -253,3 +264,15 @@ function animate() {
 }
 
 animate();
+
+
+
+
+
+
+
+// init gui
+const gui = new dat.GUI();
+const f1 = gui.addFolder('params');
+f1.add(guiControls, 'groundRoughness', 0.01, 0.9);
+f1.open();
