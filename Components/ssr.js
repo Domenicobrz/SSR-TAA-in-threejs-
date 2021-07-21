@@ -196,7 +196,8 @@ export default class SSR {
                     vec4 blue_noise = texture2D(uBlueNoise, blue_uvs);
                     
                     float r0 = blue_noise.x;
-                    float r1 = blue_noise.y;
+                    float r1 = blue_noise.y - 0.33;   // I have no idea why, but it looks like this blue noise distribution is a bit skewed,
+                                                      // so I have to make this small correction
 
                     float a = roughness * roughness;
                     float a2 = a * a;
@@ -616,7 +617,10 @@ export default class SSR {
                         if(useTAA) {
                             // float t = (accum * 0.1) * 0.98;
                             float t = (accum * 0.1) * 0.92;
-                            // t = 0.0;
+
+                            // exponential temporal average also depends on how rough the surface is
+                            t *= pow(min(roughness / 0.175, 1.0), 0.5);
+
 
                             // vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
                             // float specDot = dot(oldSpecularDir, specularReflectionDir);
