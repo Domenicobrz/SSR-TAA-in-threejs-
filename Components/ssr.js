@@ -64,6 +64,7 @@ export default class SSR {
                 uCameraTarget:   { value: new THREE.Vector3(0,0,0) },
                 uRandoms:        { value: new THREE.Vector4(0,0,0,0) },
                 uTime:           { value: 0 },
+                uAccumTimeFactor: { value: 0.92 },
                 uOldViewMatrix:  { value: new THREE.Matrix4() },
                 uBlueNoise:      { type: "t", value: blueNoiseTexture },
                 uBlueNoiseIndex: { value: new THREE.Vector4(0,0,0,0) },
@@ -115,6 +116,7 @@ export default class SSR {
                 uniform sampler2D uBlueNoise;
 
                 uniform float uTime;
+                uniform float uAccumTimeFactor;
                 uniform vec4 uBlueNoiseIndex;
                 uniform vec3 uCameraPos;
                 uniform vec3 uOldCameraPos;
@@ -615,8 +617,7 @@ export default class SSR {
                         vec4 fragCol = vec4(0.0);
     
                         if(useTAA) {
-                            // float t = (accum * 0.1) * 0.98;
-                            float t = (accum * 0.1) * 0.92;
+                            float t = (accum * 0.1) * uAccumTimeFactor;
 
                             // exponential temporal average also depends on how rough the surface is
                             t *= pow(min(roughness / 0.175, 1.0), 0.5);
@@ -824,7 +825,7 @@ export default class SSR {
         this.blueNoiseIndex = new THREE.Vector4(0,0,0,0);
     }
 
-    compute(TAART, envmap) {
+    compute(TAART, envmap, options) {
         this.SSRRT.swap();
         this.renderer.setRenderTarget(this.SSRRT.write);
 
@@ -839,6 +840,7 @@ export default class SSR {
         this.material.uniforms.uEnvmap.value  = envmap;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.material.uniforms.uTime.value = this.clock.getElapsedTime();
+        this.material.uniforms.uAccumTimeFactor.value = options.accumTimeFactor;
         // this.blueNoiseIndex.setX(++this.blueNoiseIndex.x % 512);
         this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
         this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;

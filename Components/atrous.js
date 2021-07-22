@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { guiControls } from "..";
 import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
@@ -140,11 +141,11 @@ export default class Atrous {
         this.scene.add(this.mesh);
     }
 
-    compute(SSRtexture, TAAtexture) {
+    compute(SSRtexture, TAAtexture, steps) {
         this.material.uniforms.uSSR.value = SSRtexture;
         this.material.uniforms.uHistoryAccum.value = TAAtexture;
 
-        for(let i = 0; i < 4; i++) {
+        for(let i = 0; i < steps; i++) {
             this.atrousRT.swap();
             this.renderer.setRenderTarget(this.atrousRT.write);
     

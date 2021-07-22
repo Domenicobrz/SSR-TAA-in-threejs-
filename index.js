@@ -37,8 +37,10 @@ controls.target.set(0,0,0);
 let clock = new THREE.Clock();
 clock.start();
 
-let guiControls = {
+export let guiControls = {
     groundRoughness: 0.25,
+    atrousSteps: 4,
+    accumTimeFactor: 0.92,
 };
 
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
@@ -253,8 +255,8 @@ function animate() {
     renderer.render(scene, camera);
     renderer.shadowMap.needsUpdate = false;
 
-    SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui);
-    AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture);
+    SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
+    AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture, guiControls.atrousSteps);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
     // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
@@ -275,4 +277,6 @@ animate();
 const gui = new dat.GUI();
 const f1 = gui.addFolder('params');
 f1.add(guiControls, 'groundRoughness', 0.01, 0.9);
+f1.add(guiControls, 'atrousSteps', 1, 8).step(1);
+f1.add(guiControls, 'accumTimeFactor', 0, 0.99).step(0.01);
 f1.open();
