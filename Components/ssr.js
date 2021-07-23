@@ -557,6 +557,13 @@ export default class SSR {
                     vec4 taaBuffer = texture2D(uTAA, vUv);
                     vec2 oldUvs    = taaBuffer.xy;
                     float accum    = min(taaBuffer.z, 10.0);
+
+                    float det = min(length(uOldCameraPos - uCameraPos) * 0.35, 0.6);
+                    // since the reflection-reprojection method (mentioned as oldSSR1 later) of accumulating previous values 
+                    // tends to blur the result over time,
+                    // we're trying to reduce the roughness such that the perceived difference between the two methods is minimal 
+                    // we're only applying this fix between roughness in [0.2 ... 0.4] since it works best in that range
+                    if(roughness > 0.2 && roughness < 0.4 && det > 0.5) roughness *= 0.75;
                    
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
@@ -681,8 +688,6 @@ export default class SSR {
                             //     }
                             // }
 
-                            float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.1, 0.6);
-                            // float det = min(length(uOldCameraPos - uCameraPos) * 10.1 + 0.25, 0.5);
                             // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
                             vec3 oldSSR = oldSSR1 * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
                             // vec3 oldSSR = oldSSR1 * det + oldSSR2 * (1.0 - det);
@@ -868,6 +873,7 @@ export default class SSR {
 export let SSRMaterial = function(args) {
     let baseMaterial = new THREE.MeshStandardMaterial(args);
     baseMaterial.baseF0 = args.baseF0;
+    baseMaterial.meshId = args.meshId;
 
     // remove envmap reflections from this material (we could also remove analytical lights but we decided to keep them for now)
     baseMaterial.onBeforeCompile = (shader) => {

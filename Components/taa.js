@@ -2,16 +2,18 @@ import * as THREE from "three";
 import DoubleRT from "./doubleRT";
 
 export default class TAA {
-    constructor(renderer, scene, camera, normalTexture, positionTexture) {
+    constructor(renderer, scene, camera, normalTexture, positionTexture, materialTexture) {
         this.momentMoveRT = DoubleRT(positionTexture.image.width, positionTexture.image.height, THREE.NearestFilter);
         
         this.momentBufferMaterial = new THREE.ShaderMaterial({
             uniforms: {
+                uMeshId:             { value: 0 },
                 uOldCameraPos:       { value: new THREE.Vector3(0,0,0) },
                 uOldModelViewMatrix: { value: new THREE.Matrix4() },
                 uOldViewMatrix:      { value: new THREE.Matrix4() },
                 uPosition:           { type: "t", value: positionTexture },
                 uNormal:             { type: "t", value: normalTexture },
+                uMaterial:           { type: "t", value: materialTexture },
                 uLastMomentMove:     { type: "t", value: null },
                 uSSRPosition:        { type: "t", value: null },
             },
@@ -46,8 +48,11 @@ export default class TAA {
             uniform vec3 uOldCameraPos;
             uniform mat4 uOldModelViewMatrix;
             uniform mat4 uOldViewMatrix;
+
+            uniform float uMeshId;
             uniform sampler2D uNormal;
             uniform sampler2D uPosition;
+            uniform sampler2D uMaterial;
             uniform sampler2D uLastMomentMove;
             uniform sampler2D uSSRPosition;
 
@@ -86,6 +91,9 @@ export default class TAA {
                 float oldAccum  = texture2D(uLastMomentMove, olduv).z;
                 float newAccum  = oldAccum + 1.0;
 
+                float oldMeshId  = texture2D(uMaterial, olduv).w;
+
+
                 vec2 moveDelta  = ndcOldPos.xy - ndcNewPos.xy;
                 // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
                 // float dist = clamp(length(moveDelta) / 0.085, 0.0, 1.0);
@@ -99,6 +107,7 @@ export default class TAA {
 
 
                 if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
+                if(abs(oldMeshId - uMeshId) > 0.5) newAccum = 0.0;
                 // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
 
                 gl_FragColor = vec4(moveDelta, newAccum, 1.0);
@@ -175,6 +184,7 @@ export default class TAA {
             this.momentBufferMaterial.uniforms.uOldViewMatrix.value = this.lastViewMatrixInverse;
             this.momentBufferMaterial.uniforms.uOldModelViewMatrix.value = viewModelMatrix;
             this.momentBufferMaterial.uniforms.uOldModelViewMatrix.needsUpdate = true;
+            this.momentBufferMaterial.uniforms.uMeshId.value = this.scene.children[i].savedMaterial.meshId;
             this.momentBufferMaterial.uniforms.needsUpdate = true;
     
             // remember: momentBufferScene will always hold 1 single object each time render() is called

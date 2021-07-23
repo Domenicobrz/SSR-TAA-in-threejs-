@@ -35,6 +35,7 @@ export default class SSRBuffers {
                 uRoughness: { value: 1 },
                 uMetalness: { value: 1 },
                 uBaseF0:    { value: 0.05 },
+                uMeshId:    { value: 0 },
                 uAlbedo:    { value: new Vector3(1,1,1) },
 
                 uRoughnessMap: { type: "t", value: null },
@@ -84,6 +85,7 @@ export default class SSRBuffers {
                 uniform float uRoughness;
                 uniform float uMetalness;
                 uniform float uBaseF0;
+                uniform float uMeshId;
                 uniform vec3  uAlbedo;
 
                 uniform sampler2D uRoughnessMap;
@@ -103,7 +105,7 @@ export default class SSRBuffers {
                     out_normal      = vec4(normalize(vNormal), 1.0);
                     out_position    = vec4(vPosition, vDepth);
                     out_albedo      = vec4(albedo, 0.0);
-                    out_material    = vec4(roughness, metalness, uBaseF0, 0.0);
+                    out_material    = vec4(roughness, metalness, uBaseF0, uMeshId);
                 }
             `,
 
@@ -140,6 +142,7 @@ export default class SSRBuffers {
             mesh.material.uniforms.uRoughness.value    = mesh.savedMaterial.roughness || 1;
             mesh.material.uniforms.uMetalness.value    = mesh.savedMaterial.metalness || 0;
             mesh.material.uniforms.uBaseF0.value       = mesh.savedMaterial.baseF0 || 0.05;
+            mesh.material.uniforms.uMeshId.value       = mesh.savedMaterial.meshId || 0;
     
             // remember: momentBufferScene will always hold 1 single object each time render() is called
             this.bufferScene.add(mesh);

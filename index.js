@@ -69,7 +69,7 @@ new RGBELoader()
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
     ground = new THREE.Mesh(
         new THREE.BoxBufferGeometry(500, 2, 500), 
-        SSRMaterial({ color: 0xffffff, envMap: envmap, /*map: testTexture*/ })
+        SSRMaterial({ color: 0xffffff, envMap: envmap, meshId: 1, /*map: testTexture*/ })
     );
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
     ground.position.set(0, -5, 0);
@@ -131,6 +131,7 @@ new RGBELoader()
                     envMap: envmap,
                     roughness: 1,
                     metalness: 0,
+                    meshId: 1 + i,
                 });
                 nm.castShadow = true; 
                 nm.receiveShadow = true;
@@ -195,7 +196,7 @@ let oldPosRT            = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
 let oldNormRT           = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.FloatType });
 
 let SSRBuffersProgram   = new SSRBuffers(innerWidth, innerHeight);
-let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position);
+let TAAProgram          = new TAA(renderer, scene, camera, SSRBuffersProgram.GTextures.normal, SSRBuffersProgram.GTextures.position, SSRBuffersProgram.GTextures.material);
 let SSRProgram          = new SSR(renderer, camera, controls, 
     SSRBuffersProgram.GTextures.normal, 
     SSRBuffersProgram.GTextures.position, 
@@ -259,7 +260,9 @@ function animate() {
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture, guiControls.atrousSteps);
     SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
 
-    // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+
+    
+    // blitProgram.blit(TAAProgram.momentMoveRT.write, null);
 
 
     requestAnimationFrame(animate);
