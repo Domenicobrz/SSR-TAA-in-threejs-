@@ -563,7 +563,7 @@ export default class SSR {
                     // tends to blur the result over time,
                     // we're trying to reduce the roughness such that the perceived difference between the two methods is minimal 
                     // we're only applying this fix between roughness in [0.2 ... 0.4] since it works best in that range
-                    if(roughness > 0.2 && roughness < 0.4 && det > 0.5) roughness *= 0.75;
+                    // if(roughness > 0.2 && roughness < 0.4 && det > 0.5) roughness *= 0.75;
                    
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
