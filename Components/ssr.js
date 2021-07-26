@@ -188,7 +188,7 @@ export default class SSR {
                 //     return wi
                 // }
                 
-                vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness) {
+                vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness, out vec3 out_wm) {
                     // float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
                     // float r1 = rand(float(isample) * 19.77 + uRandoms.x + wo + vec3(19.8879, 213.043, 67.732765));
 
@@ -226,6 +226,7 @@ export default class SSR {
                     }
 
                     vec3 wi = reflect(wo, wm);
+                    out_wm = wm;
                     return wi;
                 }
                     
@@ -587,9 +588,22 @@ export default class SSR {
                     int samples = uSamples;
                     int effectiveSamples = samples;
                     for(int s = 0; s < samples; s++) {
-                        vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness);
+                        vec3 wm;
+                        vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness, wm);
                         reflDir = normalize(reflDir);
                         
+                        // unfortunately, this even seems very common after a set roughness level
+                        if(dot(reflDir, norm) < 0.0) {
+                            if(effectiveSamples > 1) {
+                                // skip this sample entirely
+                                --effectiveSamples;
+                                continue;
+                            } else {
+                                // one last attempt, and whatever happens happens
+                                reflDir = SampleBRDF(viewDir, norm, s + 79, roughness, wm);
+                            }
+                        }
+
                         vec3 rd = reflDir;
                         vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
                      
@@ -735,7 +749,7 @@ export default class SSR {
                         }
                     }
 
-                    sum /= float(samples);
+                    sum /= float(effectiveSamples);
 
                     out_SSRColor        = vec4(sum.xyz, 1.0);
                     out_SSRIntersection = intersectionPointAverage / max(intersectionPointAverageSamples, 1.0);
