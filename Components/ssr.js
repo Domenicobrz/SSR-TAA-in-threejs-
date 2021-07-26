@@ -194,13 +194,16 @@ export default class SSR {
 
                     // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + mod(uTime * 20.0, 100.0) + uRandoms.xy * 589.79, 512.0) / 512.0);
                     // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + uRandoms.xy * 5809.79 + float(isample) * 19.77, 512.0) / 512.0);
-                    vec2 blue_uvs = vec2((gl_FragCoord.xy + vec2(uBlueNoiseIndex.x, 0.0) + float(isample) * 19.77) / 512.0);
+                    vec2 blue_uvs = vec2((gl_FragCoord.xy + vec2(uBlueNoiseIndex.x, 0.0)) / 512.0);
                     // blue_uvs = clamp(blue_uvs, vec2(0.0), vec2(0.99));
                     vec4 blue_noise = texture2D(uBlueNoise, blue_uvs);
                     
                     float r0 = blue_noise.x;
                     float r1 = blue_noise.y - 0.33;   // I have no idea why, but it looks like this blue noise distribution is a bit skewed,
                                                       // so I have to make this small correction
+
+                    r0 = fract(r0 + float(isample) * 19.77);
+                    r1 = fract(r1 + float(isample) * 27.337);
 
                     float a = roughness * roughness;
                     float a2 = a * a;
@@ -433,7 +436,7 @@ export default class SSR {
                     out vec3 intersectionP,
                     out vec3 lastP) 
                 {
-                    bool jitter = false;
+                    bool jitter = true;
                     float startingStep = 0.05;
                     float stepMult = 1.15;
                     const int steps = 40;
@@ -448,12 +451,12 @@ export default class SSR {
                     float lastRecordedDepthBuffThatIntersected;
 
                     vec3 p1, p2;
+                    vec3 initialP = p;
                     for(int i = 0; i < steps; i++) {
-                        vec3 initialP = p;
 
                         // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
                         // float jittA = 0.5 + rand(p) * 0.5;
-                        float jittA = clamp(rand(p), 0.0, 1.0);
+                        float jittA = fract(rand(p) + uRandoms.x);
                         if(!jitter) jittA = 1.0;
                         // jittA = 0.0;
                         float jittB = 1.0 - jittA;
@@ -485,6 +488,11 @@ export default class SSR {
                             break;
                         }
 
+                        // initialP needs to be the last jittered sample, and can't just be the "p" value at the start
+                        // of the loop iteration, otherwise you run the risk of having both p1 and p2 at the same side of the depth buffer
+                        // and (apparently) for the binary search to work properly you need to have p1 and p2 on different sides of the depth buffer
+                        // p1 at the side of the depth buffer plane that it's closer to the camera, and p2 at the other side
+                        initialP = p;
                         p += rd * step * jittB;
                         step *= stepMult; // this multiplication obviously need to appear AFTER we add jittB
                     }
