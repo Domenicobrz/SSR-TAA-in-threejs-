@@ -40,6 +40,7 @@ clock.start();
 export let guiControls = {
     groundRoughness: 0.25,
     atrousSteps: 4,
+    samples: 2,
     accumTimeFactor: 0.92,
 };
 
@@ -281,5 +282,6 @@ const gui = new dat.GUI();
 const f1 = gui.addFolder('params');
 f1.add(guiControls, 'groundRoughness', 0.01, 0.9);
 f1.add(guiControls, 'atrousSteps', 1, 8).step(1);
+f1.add(guiControls, 'samples', 1, 8).step(1);
 f1.add(guiControls, 'accumTimeFactor', 0, 0.99).step(0.01);
 f1.open();

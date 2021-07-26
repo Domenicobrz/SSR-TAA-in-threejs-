@@ -8,7 +8,6 @@ export default class SSR {
         renderer.getSize(sizeVector);
       
         let postReflMult = "1.0";
-        let samples      = "2";
 
         let rts = [];
         for(let i = 0; i < 2; i++) {
@@ -64,6 +63,7 @@ export default class SSR {
                 uCameraTarget:   { value: new THREE.Vector3(0,0,0) },
                 uRandoms:        { value: new THREE.Vector4(0,0,0,0) },
                 uTime:           { value: 0 },
+                uSamples:        { value: 2 },
                 uAccumTimeFactor: { value: 0.92 },
                 uOldViewMatrix:  { value: new THREE.Matrix4() },
                 uBlueNoise:      { type: "t", value: blueNoiseTexture },
@@ -115,6 +115,7 @@ export default class SSR {
                 uniform sampler2D uEnvmap;
                 uniform sampler2D uBlueNoise;
 
+                uniform int uSamples;
                 uniform float uTime;
                 uniform float uAccumTimeFactor;
                 uniform vec4 uBlueNoiseIndex;
@@ -451,8 +452,10 @@ export default class SSR {
                         vec3 initialP = p;
 
                         // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
-                        float jittA = 0.5 + rand(p) * 0.5;
+                        // float jittA = 0.5 + rand(p) * 0.5;
+                        float jittA = clamp(rand(p), 0.0, 1.0);
                         if(!jitter) jittA = 1.0;
+                        // jittA = 0.0;
                         float jittB = 1.0 - jittA;
 
                         p += rd * step * jittA;
@@ -558,19 +561,22 @@ export default class SSR {
                     vec2 oldUvs    = taaBuffer.xy;
                     float accum    = min(taaBuffer.z, 10.0);
 
-                    float det = min(length(uOldCameraPos - uCameraPos) * 0.35, 0.6);
+                    float det = min(length(uOldCameraPos - uCameraPos) * 0.35, 0.65);
                     // since the reflection-reprojection method (mentioned as oldSSR1 later) of accumulating previous values 
                     // tends to blur the result over time,
                     // we're trying to reduce the roughness such that the perceived difference between the two methods is minimal 
                     // we're only applying this fix between roughness in [0.2 ... 0.4] since it works best in that range
                     // if(roughness > 0.2 && roughness < 0.4 && det > 0.5) roughness *= 0.75;
+                    if(roughness > 0.2) {
+                        roughness *= 1.0 - (det / 0.6) * 0.3;
+                    }
                    
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
 
                     vec4 intersectionPointAverage = vec4(0.0);
                     float intersectionPointAverageSamples = 0.0; // I can't just reference "samples" since some sample might fail
-                    int samples = ${samples};
+                    int samples = uSamples;
                     int effectiveSamples = samples;
                     for(int s = 0; s < samples; s++) {
                         vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness);
@@ -842,6 +848,7 @@ export default class SSR {
         this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
         this.material.uniforms.uOldSSRUv.value     = this.SSRRT.read.texture[1];
         this.material.uniforms.uTAA.value     = TAART;
+        this.material.uniforms.uSamples.value = options.samples;
         this.material.uniforms.uEnvmap.value  = envmap;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
         this.material.uniforms.uTime.value = this.clock.getElapsedTime();
