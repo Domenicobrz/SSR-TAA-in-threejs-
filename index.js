@@ -39,6 +39,7 @@ clock.start();
 
 export let guiControls = {
     groundRoughness: 0.25,
+    groundMetalness: 0.985,
     atrousSteps: 4,
     samples: 2,
     accumTimeFactor: 0.92,
@@ -69,15 +70,30 @@ new RGBELoader()
 
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
     ground = new THREE.Mesh(
-        new THREE.BoxBufferGeometry(500, 2, 500), 
-        SSRMaterial({ color: 0xffffff, envMap: envmap, meshId: 1, /*map: testTexture*/ })
+        new THREE.BoxBufferGeometry(150, 2, 150), 
+        SSRMaterial({ 
+            color: 0xffffff, 
+            envMap: envmap, 
+            meshId: 1, 
+            baseF0: 0.25,
+            map:          new THREE.TextureLoader().load("assets/marble_01_diff_1k_2.jpg", (texture) => {
+                texture.repeat = new THREE.Vector2(7, 7); 
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+            }), 
+            roughnessMap: new THREE.TextureLoader().load("assets/marble_01_rough_1k.jpg", (texture) => {
+                texture.repeat = new THREE.Vector2(7, 7); 
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+            }), 
+       })
     );
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
     ground.material.roughness = guiControls.groundRoughness;
-    ground.material.metalness = 0.985;
+    ground.material.metalness = guiControls.groundMetalness;
     // ground.material.roughness = 1;
     // ground.material.metalness = 0;
     scene.add(ground);
@@ -116,19 +132,21 @@ new RGBELoader()
         'assets/angelLR2.glb',
         // called when resource is loaded
         function ( object ) {
-    
+
             let mesh = object.scene.children[0];
 
-            for(let i = 0; i < 3; i++) {
+            for(let i = 0; i < 1; i++) {
                 let nm = mesh.clone();
 
                 let color = new THREE.Color(1,1,1);
-                if(i === 0) color = new THREE.Color(1, 0.3, 0.365); 
+                if(i === 1) color = new THREE.Color(1, 0.3, 0.365); 
                 if(i === 2) color = new THREE.Color(0.6, 1, 0.35); 
 
                 nm.material = SSRMaterial({ 
                     color: color, 
-                    // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
+                    map: new THREE.TextureLoader().load("assets/uv.jpg", (texture) => {
+                        texture.flipY = false;
+                    }), 
                     envMap: envmap,
                     roughness: 1,
                     metalness: 0,
@@ -138,25 +156,98 @@ new RGBELoader()
                 nm.receiveShadow = true;
 
                 nm.scale.set(0.5, 0.5, 0.5);
-                nm.position.set(-20 + i * 10, -5, 0);
-    
+                nm.position.set(9, -5, 4);
+                nm.rotation.z = 0.2;
+
                 scene.add( nm );
             }
 
 
             let sphere = new Mesh(
-                new SphereBufferGeometry(5, 20, 20),
+                new SphereBufferGeometry(2.5, 20, 20),
                 new SSRMaterial({
                     color: new THREE.Color(1, 0.3, 0.365), 
-                    // map: new THREE.TextureLoader().load("assets/uv.jpg"), 
+                    map: new THREE.TextureLoader().load("assets/jkhr7.png"), 
                     envMap: envmap,
                     roughness: 0.01,
                     metalness: 0,
                     baseF0: 1,
                 })
             );
-            sphere.position.set(-8,0,-5);
+            sphere.rotation.y = -Math.PI * 0.6;
+            sphere.position.set(-6.5, -2, 4.5);
             scene.add(sphere);
+        }
+    );
+
+    // load a resource
+    loader.load(
+        // resource URL
+        'assets/CashRegister_01_4k_no_mat.glb',
+        // called when resource is loaded
+        function ( object ) {
+
+            let mesh = object.scene.children[0].children[0];
+            mesh.material = SSRMaterial({ 
+                color: new THREE.Color(1,1,1), 
+                envMap: envmap,
+                map: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg", (texture) => {
+                    texture.flipY = false;
+                }),
+                roughnessMap: new THREE.TextureLoader().load("assets/CashRegister_01_roughness_2k.jpg", (texture) => {
+                    texture.flipY = false;
+                }),
+                metalnessMap: new THREE.TextureLoader().load("assets/CashRegister_01_metallic_2k.jpg", (texture) => {
+                    texture.flipY = false;
+                }),
+                // normalMap: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg"),
+                roughness: 1,
+                metalness: 0,
+                meshId: 1,
+                baseF0: 0.05,
+            });
+            mesh.castShadow = true; 
+            mesh.receiveShadow = true;
+            mesh.scale.set(15, 15, 15);
+            mesh.position.set(0,-4,0);
+
+            scene.add( mesh );
+        }
+    );
+
+    // load a resource
+    loader.load(
+        // resource URL
+        'assets/BarberShopChair_01_2k.glb',
+        // called when resource is loaded
+        function ( object ) {
+
+            let mesh = object.scene.children[0];
+            mesh.material = SSRMaterial({ 
+                color: new THREE.Color(1,1,1), 
+                envMap: envmap,
+                map: new THREE.TextureLoader().load("assets/BarberShopChair_01_diff_2k.jpg", (texture) => {
+                    texture.flipY = false;
+                }),
+                // roughnessMap: new THREE.TextureLoader().load("assets/BarberShopChair_01_roughness_2k.jpg", (texture) => {
+                //     texture.flipY = false;
+                // }),
+                // metalnessMap: new THREE.TextureLoader().load("assets/CashRegister_01_metallic_2k.jpg", (texture) => {
+                //     texture.flipY = false;
+                // }),
+                // normalMap: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg"),
+                roughness: 1,
+                metalness: 0,
+                meshId: 1,
+                baseF0: 0.05,
+            });
+            mesh.castShadow = true; 
+            mesh.receiveShadow = true;
+            mesh.scale.set(12, 12, 12);
+            mesh.rotation.y = -Math.PI * 0.5;
+            mesh.position.set(-10,-4,0);
+
+            scene.add( mesh );
         }
     );
 
@@ -239,6 +330,7 @@ function animate() {
 
     // update GUI
     if(ground) ground.material.roughness = guiControls.groundRoughness;
+    if(ground) ground.material.metalness = guiControls.groundMetalness;
 
 
 
@@ -280,7 +372,8 @@ animate();
 // init gui
 const gui = new dat.GUI();
 const f1 = gui.addFolder('params');
-f1.add(guiControls, 'groundRoughness', 0.01, 0.9);
+f1.add(guiControls, 'groundRoughness', 0.01, 0.99);
+f1.add(guiControls, 'groundMetalness', 0, 0.99);
 f1.add(guiControls, 'atrousSteps', 1, 8).step(1);
 f1.add(guiControls, 'samples', 1, 8).step(1);
 f1.add(guiControls, 'accumTimeFactor', 0, 0.99).step(0.01);

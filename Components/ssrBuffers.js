@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Vector3 } from "three";
+import { Vector2, Vector3 } from "three";
 import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 import { defaultWhiteTexture, defaultBlackTexture } from "./defaultTextures";
@@ -37,6 +37,7 @@ export default class SSRBuffers {
                 uBaseF0:    { value: 0.05 },
                 uMeshId:    { value: 0 },
                 uAlbedo:    { value: new Vector3(1,1,1) },
+                uAlbedoMapRepeat: { value: new Vector2(1,1) },
 
                 uRoughnessMap: { type: "t", value: null },
                 uMetalnessMap: { type: "t", value: null },
@@ -87,6 +88,7 @@ export default class SSRBuffers {
                 uniform float uBaseF0;
                 uniform float uMeshId;
                 uniform vec3  uAlbedo;
+                uniform vec2  uAlbedoMapRepeat;
 
                 uniform sampler2D uRoughnessMap;
                 uniform sampler2D uMetalnessMap;
@@ -100,7 +102,7 @@ export default class SSRBuffers {
                 void main() {
                     float roughness = texture(uRoughnessMap, vUv).x * uRoughness;
                     float metalness = texture(uMetalnessMap, vUv).y * uMetalness;
-                    vec3 albedo     = texture(uAlbedoMap, vUv).xyz * uAlbedo;
+                    vec3 albedo     = texture(uAlbedoMap, vUv * uAlbedoMapRepeat).xyz * uAlbedo;
 
                     out_normal      = vec4(normalize(vNormal), 1.0);
                     out_position    = vec4(vPosition, vDepth);
@@ -135,6 +137,7 @@ export default class SSRBuffers {
 
             mesh.savedMaterial = mesh.material;
             mesh.material = this.bufferMaterial;
+            mesh.material.uniforms.uAlbedoMapRepeat.value = mesh.savedMaterial.map.repeat || new THREE.Vector2(1,1);
             mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map          || defaultWhiteTexture;
             mesh.material.uniforms.uRoughnessMap.value = mesh.savedMaterial.roughnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uMetalnessMap.value = mesh.savedMaterial.metalnessMap || defaultWhiteTexture;
