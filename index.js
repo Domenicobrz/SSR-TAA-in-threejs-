@@ -19,7 +19,7 @@ let scene = new THREE.Scene();
 
 let camera = new THREE.PerspectiveCamera( 40, innerWidth / innerHeight, 0.1, 1000 );
 // camera.position.set(0, 2, 57);
-camera.position.set(-28, 25, 42);
+camera.position.set(-10, 18, 45);
 
 let renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.shadowMap.enabled = true;
@@ -32,7 +32,7 @@ renderer.shadowMap.autoUpdate = false;
 document.body.appendChild(renderer.domElement);
 
 let controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0,0,0);
+controls.target.set(1.1, -1.1, 0.7);
 
 let clock = new THREE.Clock();
 clock.start();
@@ -43,6 +43,7 @@ export let guiControls = {
     atrousSteps: 4,
     samples: 2,
     accumTimeFactor: 0.92,
+    uncompressedEnv: false,
 };
 
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
@@ -144,7 +145,7 @@ new RGBELoader()
 
                 nm.material = SSRMaterial({ 
                     color: color, 
-                    map: new THREE.TextureLoader().load("assets/uv.jpg", (texture) => {
+                    map: new THREE.TextureLoader().load("assets/uv_2k.jpg", (texture) => {
                         texture.flipY = false;
                     }), 
                     envMap: envmap,
@@ -236,7 +237,7 @@ new RGBELoader()
                 //     texture.flipY = false;
                 // }),
                 // normalMap: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg"),
-                roughness: 1,
+                roughness: 0.05,
                 metalness: 0,
                 meshId: 1,
                 baseF0: 0.05,
@@ -377,4 +378,5 @@ f1.add(guiControls, 'groundMetalness', 0, 0.99);
 f1.add(guiControls, 'atrousSteps', 1, 8).step(1);
 f1.add(guiControls, 'samples', 1, 8).step(1);
 f1.add(guiControls, 'accumTimeFactor', 0, 0.99).step(0.01);
+f1.add(guiControls, 'uncompressedEnv');
 f1.open();

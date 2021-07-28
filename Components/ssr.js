@@ -64,6 +64,7 @@ export default class SSR {
                 uRandoms:        { value: new THREE.Vector4(0,0,0,0) },
                 uTime:           { value: 0 },
                 uSamples:        { value: 2 },
+                uUncompressedEnv: { value: false },
                 uAccumTimeFactor: { value: 0.92 },
                 uOldViewMatrix:  { value: new THREE.Matrix4() },
                 uBlueNoise:      { type: "t", value: blueNoiseTexture },
@@ -117,6 +118,7 @@ export default class SSR {
 
                 uniform int uSamples;
                 uniform float uTime;
+                uniform bool uUncompressedEnv;
                 uniform float uAccumTimeFactor;
                 uniform vec4 uBlueNoiseIndex;
                 uniform vec3 uCameraPos;
@@ -422,10 +424,13 @@ export default class SSR {
                         (asin(dir.y) + PI * 0.5) / (PI)
                     );
                     // vec3 radianceClamp = vec3(100.0);
-                    vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
-                    // vec3 col = RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz;
-
-                    // vec3 col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz) * 0.7 + RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz * 0.3;
+                    vec3 col = vec3(0.0);
+                    if(!uUncompressedEnv) {
+                        col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
+                        // vec3 col = RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz;
+                    } else {
+                        col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz) * 0.55 + RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz * 0.45;
+                    }
 
                     // col = clamp(col, vec3(0.0), vec3(radianceClamp));
                     // col = pow(col, vec3(2.2)); 
@@ -870,6 +875,7 @@ export default class SSR {
         this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
         this.material.uniforms.uOldSSRUv.value     = this.SSRRT.read.texture[1];
         this.material.uniforms.uTAA.value     = TAART;
+        this.material.uniforms.uUncompressedEnv.value = options.uncompressedEnv;
         this.material.uniforms.uSamples.value = options.samples;
         this.material.uniforms.uEnvmap.value  = envmap;
         this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());

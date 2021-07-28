@@ -38,6 +38,8 @@ export default class SSRBuffers {
                 uMeshId:    { value: 0 },
                 uAlbedo:    { value: new Vector3(1,1,1) },
                 uAlbedoMapRepeat: { value: new Vector2(1,1) },
+                uRoughnessMapRepeat: { value: new Vector2(1,1) },
+                uMetalnessMapRepeat: { value: new Vector2(1,1) },
 
                 uRoughnessMap: { type: "t", value: null },
                 uMetalnessMap: { type: "t", value: null },
@@ -89,6 +91,8 @@ export default class SSRBuffers {
                 uniform float uMeshId;
                 uniform vec3  uAlbedo;
                 uniform vec2  uAlbedoMapRepeat;
+                uniform vec2  uRoughnessMapRepeat;
+                uniform vec2  uMetalnessMapRepeat;
 
                 uniform sampler2D uRoughnessMap;
                 uniform sampler2D uMetalnessMap;
@@ -100,8 +104,8 @@ export default class SSRBuffers {
 			    layout(location = 3) out vec4 out_material;
 
                 void main() {
-                    float roughness = texture(uRoughnessMap, vUv).x * uRoughness;
-                    float metalness = texture(uMetalnessMap, vUv).y * uMetalness;
+                    float roughness = texture(uRoughnessMap, vUv * uRoughnessMapRepeat).x * uRoughness;
+                    float metalness = texture(uMetalnessMap, vUv * uMetalnessMapRepeat).y * uMetalness;
                     vec3 albedo     = texture(uAlbedoMap, vUv * uAlbedoMapRepeat).xyz * uAlbedo;
 
                     out_normal      = vec4(normalize(vNormal), 1.0);
@@ -137,7 +141,9 @@ export default class SSRBuffers {
 
             mesh.savedMaterial = mesh.material;
             mesh.material = this.bufferMaterial;
-            mesh.material.uniforms.uAlbedoMapRepeat.value = mesh.savedMaterial.map.repeat || new THREE.Vector2(1,1);
+            mesh.material.uniforms.uRoughnessMapRepeat.value = mesh.savedMaterial.roughnessMap?.repeat || new THREE.Vector2(1,1);
+            mesh.material.uniforms.uMetalnessMapRepeat.value = mesh.savedMaterial.metalnessMap?.repeat || new THREE.Vector2(1,1);
+            mesh.material.uniforms.uAlbedoMapRepeat.value = mesh.savedMaterial.map?.repeat || new THREE.Vector2(1,1);
             mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map          || defaultWhiteTexture;
             mesh.material.uniforms.uRoughnessMap.value = mesh.savedMaterial.roughnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uMetalnessMap.value = mesh.savedMaterial.metalnessMap || defaultWhiteTexture;
