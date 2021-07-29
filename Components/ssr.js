@@ -196,7 +196,7 @@ export default class SSR {
 
                     // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + mod(uTime * 20.0, 100.0) + uRandoms.xy * 589.79, 512.0) / 512.0);
                     // vec2 blue_uvs = vec2(mod(gl_FragCoord.xy + uRandoms.xy * 5809.79 + float(isample) * 19.77, 512.0) / 512.0);
-                    vec2 blue_uvs = vec2((gl_FragCoord.xy + vec2(uBlueNoiseIndex.x, 0.0)) / 512.0);
+                    vec2 blue_uvs = vec2((gl_FragCoord.xy + uBlueNoiseIndex.xy) / 512.0);
                     // blue_uvs = clamp(blue_uvs, vec2(0.0), vec2(0.99));
                     vec4 blue_noise = texture2D(uBlueNoise, blue_uvs);
                     
@@ -206,7 +206,7 @@ export default class SSR {
 
                     r0 = fract(r0 + float(isample) * 19.77);
                     r1 = fract(r1 + float(isample) * 27.337);
-
+                                                                    
                     float a = roughness * roughness;
                     float a2 = a * a;
                     float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
@@ -883,6 +883,7 @@ export default class SSR {
         this.material.uniforms.uAccumTimeFactor.value = options.accumTimeFactor;
         // this.blueNoiseIndex.setX(++this.blueNoiseIndex.x % 512);
         this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
+        this.blueNoiseIndex.setY(Math.floor(Math.random() * 512));
         this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;
         this.renderer.render(this.scene, this.sceneCamera);
 

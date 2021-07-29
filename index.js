@@ -59,6 +59,11 @@ let envmapEqui;
 let ground;
 new RGBELoader()
 .setDataType( THREE.UnsignedByteType ) // alt: FloatType, HalfFloatType
+// .load("assets/san_giuseppe_bridge_2k.hdr", function ( texture, textureData ) {
+// .load("assets/royal_esplanade_2k.hdr", function ( texture, textureData ) {
+// .load("assets/aerodynamics_workshop_2k (1).hdr", function ( texture, textureData ) {
+// .load("assets/tiergarten_2k.hdr", function ( texture, textureData ) {
+// .load("assets/palermo_park_2k.hdr", function ( texture, textureData ) {
 .load("assets/ballroom_2k.hdr", function ( texture, textureData ) {
 // .load("assets/peppermint_powerplant_2k.hdr", function ( texture, textureData ) {
 // .load("assets/herkulessaulen_2k.hdr", function ( texture, textureData ) {
@@ -77,7 +82,7 @@ new RGBELoader()
             envMap: envmap, 
             meshId: 1, 
             baseF0: 0.25,
-            map:          new THREE.TextureLoader().load("assets/marble_01_diff_1k_2.jpg", (texture) => {
+            map:          new THREE.TextureLoader().load("assets/marble_01_diff_1k_3.jpg", (texture) => {
                 texture.repeat = new THREE.Vector2(7, 7); 
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
