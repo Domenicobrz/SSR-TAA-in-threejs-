@@ -107,6 +107,27 @@ new RGBELoader()
     // ground.material.metalness = 0;
     scene.add(ground);
 
+
+
+
+    let ground2 = new THREE.Mesh(
+        new THREE.BoxBufferGeometry(100, 30, 2), 
+        SSRMaterial({ 
+            color: 0xffffff, 
+            envMap: envmap, 
+            meshId: 10, 
+            baseF0: 0.05,
+            map:          new THREE.TextureLoader().load("assets/graffiti.jpg"), 
+       })
+    );
+    ground2.position.set(0, 5, -50);
+    ground2.material.roughness = 1;
+    ground2.material.metalness = 0;
+    scene.add(ground2);
+
+
+
+
     // let boxGeometry = new THREE.TorusKnotGeometry( 3, 0.7, 100, 16, 4 );
     // // let boxGeometry = new THREE.BoxBufferGeometry(3,7,3);
     // let box = new THREE.Mesh(boxGeometry, SSRMaterial({ color: 0xf5f341, map: testTexture, envMap: envmap }));
@@ -252,7 +273,7 @@ new RGBELoader()
             });
             mesh.castShadow = true; 
             mesh.receiveShadow = true;
-            mesh.scale.set(12, 12, 12);
+            mesh.scale.set(8, 8, 8);
             mesh.rotation.y = -Math.PI * 0.5;
             mesh.position.set(-10,-4,0);
 
@@ -391,11 +412,17 @@ f1.add(guiControls, 'uncompressedEnv');
 f1.add(guiControls, 'resolution', { Quarter: 'Quarter', Half: 'Half', Full: 'Full' }).onChange(() => {
     SSRProgram.setSize(guiControls.resolution);
 });
-f1.add(guiControls, 'preset', { "medium quality": 'Medium quality', "low quality": 'Low quality', "high quality": 'High quality' }).onChange(() => {
-    if(guiControls.preset == "Low quality") {
+f1.add(guiControls, 'preset', { "lowest quality": 'Lowest quality', "low quality": 'Low quality', "medium quality": 'Medium quality', "high quality": 'High quality' }).onChange(() => {
+    if(guiControls.preset == "Lowest quality") {
         guiControls.samples = 8;
         guiControls.resolution = "Quarter";
         guiControls.atrousSteps = 5;
+        guiControls.accumTimeFactor = 0.92;
+    }
+    if(guiControls.preset == "Low quality") {
+        guiControls.samples = 4;
+        guiControls.resolution = "Half";
+        guiControls.atrousSteps = 4;
         guiControls.accumTimeFactor = 0.92;
     }
     if(guiControls.preset == "Medium quality") {
