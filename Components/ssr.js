@@ -364,7 +364,7 @@ export default class SSR {
                         return vec3(0.0);
                     }
 
-                    vec3 F    = fresnelSchlick(max(dot(wm, wo), 0.0), F0);
+                    vec3 F    = fresnelSchlick(max(dot(wi, n), 0.0), F0);
                     float NDF = DistributionGGX(n, wm, roughness); 
                     float G   = GeometrySmith(n, wo, wi, roughness);   
 
@@ -372,7 +372,10 @@ export default class SSR {
                     // float denominator = 4.0 * max(dot(n, wo), 0.0) * max(dot(n, wi), 0.0);
                     // vec3 specular     = numerator / max(denominator, 0.001);  
                     
-                    vec3 specular = (F * NDF * G) / (4.0 * dot(wi, n) * dot(n,wo));
+                    // I removed an additional multiplication dot(wi, n) from this line
+                    // so that I could also remove the initial multiplication for cos theta at the first bounce
+                    // took the idea from here: http://cwyman.org/code/dxrTutors/tutors/Tutor14/tutorial14.md.html (step 4)
+                    vec3 specular = (F * NDF * G) / (4.0 * dot(n,wo));  
                     return F0 * specular;
                     // return specular;
 
@@ -613,7 +616,7 @@ export default class SSR {
                      
                         vec3 mult = vec3(1.0);
                         float maxIntersectionDepthDistance = 1.5;
-                        mult *= max(dot(rd, norm), 0.0);
+                        // mult *= max(dot(rd, norm), 0.0);
     
 
                         vec3 p2;
@@ -636,11 +639,11 @@ export default class SSR {
                             vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
                             float pdf = samplePDF(rd, -viewDir, norm, roughness);
 
-                            brdf = clamp(brdf, 0.00001, 1000.0);
-                            pdf  = clamp(pdf,  0.00001, 1000.0);
+                            brdf = clamp(brdf, 0.00001, 100.0);
+                            pdf  = clamp(pdf,  0.1, 100.0);
 
                             mult *= brdf;
-                            mult /= max(pdf, 0.0000000000001);
+                            mult /= max(pdf, 0.00001);
 
                             intersectionPointAverage += vec4(p2, 1.0);
                             intersectionPointAverageSamples += 1.0;

@@ -97,14 +97,11 @@ new RGBELoader()
             }), 
        })
     );
-    // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0x222222, map: testTexture }));
     ground.position.set(0, -5, 0);
     ground.castShadow = true; 
     ground.receiveShadow = true; 
     ground.material.roughness = guiControls.groundRoughness;
     ground.material.metalness = guiControls.groundMetalness;
-    // ground.material.roughness = 1;
-    // ground.material.metalness = 0;
     scene.add(ground);
 
 
