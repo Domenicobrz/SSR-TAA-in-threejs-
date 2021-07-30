@@ -105,10 +105,11 @@ export default class TAA {
                 // be different because e.g. the model was rotated, so the pixel might be valid,
                 // but a previous rotation could have changed the normal enough so that the test fails
 
+                float dist = length(oldWorldPosition - uOldCameraPos);
 
                 if(dot(oldNormal, normal) < 0.94) newAccum = 0.0;
-                if(abs(oldMeshId - uMeshId) > 0.5) newAccum = 0.0;
-                // if(length(oldWorldPosition - vWorldFragPos) > 0.175) newAccum = 0.0;
+                if(abs(oldMeshId - uMeshId) > 0.1) newAccum = 0.0;
+                if(length(oldWorldPosition - vWorldFragPos) > (0.175 * dist * 2.175)) newAccum = 0.0;
 
                 gl_FragColor = vec4(moveDelta, newAccum, 1.0);
                 // // test that looks beautiful: (try it)

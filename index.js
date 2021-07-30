@@ -38,16 +38,19 @@ let clock = new THREE.Clock();
 clock.start();
 
 export let guiControls = {
-    groundRoughness: 0.25,
+    groundRoughness: 0.35,
     groundMetalness: 0.985,
+    multiplier: 1,
     atrousSteps: 4,
     samples: 2,
     accumTimeFactor: 0.92,
     uncompressedEnv: false,
+    resolution: "Full",
+    preset: "Medium quality",
 };
 
 // let texture = new THREE.TextureLoader().load("https://thumbs.dreamstime.com/b/white-grey-hexagon-background-texture-d-render-metal-illustration-82112026.jpg");
-let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
+// let testTexture = new THREE.TextureLoader().load("https://png.pngtree.com/png-clipart/20190516/original/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg");
 // let texture;
 let blueNoise512 = new THREE.TextureLoader().load("assets/blue_noise_rgb_512.png", (texture) => {
     texture.wrapS = THREE.RepeatWrapping;
@@ -76,7 +79,7 @@ new RGBELoader()
 
     // let ground = new THREE.Mesh(new THREE.BoxBufferGeometry(500, 2, 500), new THREE.MeshPhongMaterial({ color: 0xffffff, map: testTexture }));
     ground = new THREE.Mesh(
-        new THREE.BoxBufferGeometry(150, 2, 150), 
+        new THREE.BoxBufferGeometry(100, 2, 100), 
         SSRMaterial({ 
             color: 0xffffff, 
             envMap: envmap, 
@@ -357,7 +360,7 @@ function animate() {
 
     SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
     AtrousProgram.compute(SSRProgram.SSRRT.write.texture[0], TAAProgram.momentMoveRT.write.texture, guiControls.atrousSteps);
-    SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null);
+    SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null, guiControls);
 
 
     
@@ -380,8 +383,48 @@ const gui = new dat.GUI();
 const f1 = gui.addFolder('params');
 f1.add(guiControls, 'groundRoughness', 0.01, 0.99);
 f1.add(guiControls, 'groundMetalness', 0, 0.99);
+f1.add(guiControls, 'multiplier', 0, 2.5);
 f1.add(guiControls, 'atrousSteps', 1, 8).step(1);
-f1.add(guiControls, 'samples', 1, 8).step(1);
+f1.add(guiControls, 'samples', 1, 20).step(1);
 f1.add(guiControls, 'accumTimeFactor', 0, 0.99).step(0.01);
 f1.add(guiControls, 'uncompressedEnv');
+f1.add(guiControls, 'resolution', { Quarter: 'Quarter', Half: 'Half', Full: 'Full' }).onChange(() => {
+    SSRProgram.setSize(guiControls.resolution);
+});
+f1.add(guiControls, 'preset', { "medium quality": 'Medium quality', "low quality": 'Low quality', "high quality": 'High quality' }).onChange(() => {
+    if(guiControls.preset == "Low quality") {
+        guiControls.samples = 8;
+        guiControls.resolution = "Quarter";
+        guiControls.atrousSteps = 5;
+        guiControls.accumTimeFactor = 0.92;
+    }
+    if(guiControls.preset == "Medium quality") {
+        guiControls.samples = 2;
+        guiControls.resolution = "Full";
+        guiControls.atrousSteps = 4;
+        guiControls.accumTimeFactor = 0.92;
+    }
+    if(guiControls.preset == "High quality") {
+        guiControls.samples = 5;
+        guiControls.resolution = "Full";
+        guiControls.atrousSteps = 4;
+        guiControls.accumTimeFactor = 0.92;
+    }
+    updateGUI();
+});
 f1.open();
+
+let updateGUI = function() {
+    for(let folder in gui.__folders) {
+        if(!gui.__folders.hasOwnProperty(folder)) continue;
+
+        for(let j = 0; j < gui.__folders[folder].__controllers.length; j++) {
+            let property = gui.__folders[folder].__controllers[j].property;
+            if(property == "preset") continue;
+
+            if(guiControls.hasOwnProperty(property)) {
+                gui.__folders[folder].__controllers[j].setValue(guiControls[property]);
+            }
+        }
+    }
+};

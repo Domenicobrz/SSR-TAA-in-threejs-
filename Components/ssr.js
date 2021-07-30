@@ -6,9 +6,8 @@ export default class SSR {
     constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT, oldPosRT, oldNormRT, blueNoiseTexture) {
         let sizeVector = new THREE.Vector2();
         renderer.getSize(sizeVector);
+        this.sizeVector = sizeVector;
       
-        let postReflMult = "1.0";
-
         let rts = [];
         for(let i = 0; i < 2; i++) {
             let renderTarget = new THREE.WebGLMultipleRenderTargets(
@@ -16,7 +15,7 @@ export default class SSR {
                 sizeVector.y * 1,
                 2
             );
-            
+
             for ( let j = 0, il = renderTarget.texture.length; j < il; j ++ ) {
                 renderTarget.texture[ j ].minFilter = THREE.NearestFilter;
                 renderTarget.texture[ j ].magFilter = THREE.NearestFilter;
@@ -38,8 +37,8 @@ export default class SSR {
                 this.write = temp;
             },
             setSize: function(w, h) {
-                rt1.setSize(w, h);
-                rt2.setSize(w, h);
+                rts[0].setSize(w, h);
+                rts[1].setSize(w, h);
             },
         }
 
@@ -775,6 +774,7 @@ export default class SSR {
                 uPosition:  { type: "t", value: positionTexture },
                 uNormal:    { type: "t", value: normalTexture },
                 uCameraPos: { value: new THREE.Vector3(0,0,0) },
+                uPostReflMult: { value: 1},
             },
             
             vertexShader: `
@@ -795,6 +795,7 @@ export default class SSR {
                 uniform sampler2D uNormal;
 
                 uniform vec3 uCameraPos;
+                uniform float uPostReflMult;
 
                 varying vec2 vUv;
 
@@ -833,7 +834,7 @@ export default class SSR {
                     // I think that applying it in the ssr pass makes it so that the accumulated values
                     // are applied on numbers over a small range and that helps in reducing substantially the variance 
 
-                    vec3 finalLinear = col * kD + ssr * ${postReflMult};
+                    vec3 finalLinear = col * kD + ssr * uPostReflMult;
                     // vec3 finalLinear = col * kD;
 
                     vec3 final = ACESFilmicToneMapping(finalLinear);
@@ -890,12 +891,13 @@ export default class SSR {
         this.renderer.setRenderTarget(null);
     }
 
-    apply(ssrTexture, renderTargetDest) {
+    apply(ssrTexture, renderTargetDest, options) {
         this.renderer.setRenderTarget(renderTargetDest);
 
         this.mesh.material = this.applySSRMaterial;
         this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
         this.applySSRMaterial.uniforms.uCameraPos.value = this.sceneCamera.position;
+        this.applySSRMaterial.uniforms.uPostReflMult.value = options.multiplier;
         this.renderer.render(this.scene, this.sceneCamera);
 
         this.renderer.setRenderTarget(null);
@@ -903,6 +905,20 @@ export default class SSR {
 
         this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
         this.lastCameraPos = this.sceneCamera.position.clone();
+    }
+
+    setSize(resolution) {
+        switch(resolution) {
+            case "Quarter":
+                this.SSRRT.setSize(Math.floor(this.sizeVector.x * 0.25), Math.floor(this.sizeVector.y * 0.25));
+                break;
+            case "Half":
+                this.SSRRT.setSize(Math.floor(this.sizeVector.x * 0.5), Math.floor(this.sizeVector.y * 0.5));
+                break;
+            case "Full":
+                this.SSRRT.setSize(this.sizeVector.x, this.sizeVector.y);
+                break;
+        }
     }
 }
 
