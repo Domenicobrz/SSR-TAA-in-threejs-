@@ -383,6 +383,8 @@ function animate() {
 
     
     // blitProgram.blit(TAAProgram.momentMoveRT.write, null);
+    // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
+    // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
 
 
     requestAnimationFrame(animate);

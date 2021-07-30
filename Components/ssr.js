@@ -852,6 +852,7 @@ export default class SSR {
         });
 
         this.mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2,2), this.material);
+        this.mesh.frustumCulled = false;
         this.renderer = renderer;
 
         this.scene = new THREE.Scene();
