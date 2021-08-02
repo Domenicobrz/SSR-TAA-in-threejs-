@@ -171,23 +171,6 @@ export default class SSR {
 
                 // functions taken from:
                 // https://computergraphics.stackexchange.com/questions/7656/importance-sampling-microfacet-ggx
-
-                // // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
-                // // https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
-                // func (m Microfacet) Sample(wo geom.Direction, rnd *rand.Rand) geom.Direction {
-                //     r0 := rnd.Float64()
-                //     r1 := rnd.Float64()
-                //     a := m.Roughness * m.Roughness
-                //     a2 := a * a
-                //     theta := math.Acos(math.Sqrt((1 - r0) / ((a2-1)*r0 + 1)))
-                //     phi := 2 * math.Pi * r1
-                //     x := math.Sin(theta) * math.Cos(phi)
-                //     y := math.Cos(theta)
-                //     z := math.Sin(theta) * math.Sin(phi)
-                //     wm := geom.Vector3{x, y, z}.Unit()
-                //     wi := wo.Reflect2(wm)
-                //     return wi
-                // }
                 
                 vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness, out vec3 out_wm) {
                     // float r0 = rand(float(isample) * 19.77 + uRandoms.x + wo);
@@ -230,21 +213,6 @@ export default class SSR {
                     out_wm = wm;
                     return wi;
                 }
-                    
-
-                // // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
-                // // https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
-                // // https://en.wikipedia.org/wiki/List_of_common_coordinate_transformations#From_Cartesian_coordinates_2
-                // func (m Microfacet) PDF(wi, wo geom.Direction) float64 {
-                //     wg := geom.Up
-                //     wm := wo.Half(wi)
-                //     a := m.Roughness * m.Roughness
-                //     a2 := a * a
-                //     cosTheta := wg.Dot(wm)
-                //     exp := (a2-1)*cosTheta*cosTheta + 1
-                //     D := a2 / (math.Pi * exp * exp)
-                //     return (D * wm.Dot(wg)) / (4 * wo.Dot(wm))
-                // }
 
                 float samplePDF(vec3 wi, vec3 wo, vec3 norm, float roughness) {
                     vec3 wg = norm;
@@ -268,21 +236,7 @@ export default class SSR {
 
                 // // GGX Normal Distribution Function
                 // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-                // func ggx(in, out, normal geom.Direction, roughness float64) float64 {
-                //     m := in.Half(out)
-                //     a := roughness * roughness
-                //     nm2 := math.Pow(normal.Dot(m), 2)
-                //     return (a * a) / (math.Pi * math.Pow(nm2*(a*a-1)+1, 2))
-                // }
-                // 
-                // // Smith geometric shadowing for a GGX distribution
-                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-                // func smithGGX(out, normal geom.Direction, roughness float64) float64 {
-                //     a := roughness * roughness
-                //     nv := normal.Dot(out)
-                //     return (2 * nv) / (nv + math.Sqrt(a*a+(1-a*a)*nv*nv))
-                // }
-
+           
                 float DistributionGGX(vec3 N, vec3 H, float roughness) {
                     vec3 m = H;
                     float a = roughness * roughness;
@@ -342,20 +296,6 @@ export default class SSR {
                     float GGXL = NoV * (NoL * (1.0 - a) + a);
                     return 0.5 / (GGXV + GGXL);
                 }
-
-                // // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-                // func (m Microfacet) Eval(wi, wo geom.Direction) rgb.Energy {
-                //     wg := geom.Up
-                //     wm := wo.Half(wi)
-                //     if wi.Y <= 0 || wi.Dot(wm) <= 0 {
-                //         return rgb.Energy{0, 0, 0}
-                //     }
-                //     F := fresnelSchlick(wi, wg, m.F0.Mean()) // The Fresnel function
-                //     D := ggx(wi, wo, wg, m.Roughness)        // The NDF (Normal Distribution Function)
-                //     G := smithGGX(wo, wg, m.Roughness)       // The Geometric Shadowing function
-                //     r := (F * D * G) / (4 * wg.Dot(wi) * wg.Dot(wo))
-                //     return m.F0.Scaled(r)
-                // }
 
                 // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
                 vec3 EvalBRDF(vec3 wi, vec3 wo, vec3 n, float roughness, vec3 F0) {
