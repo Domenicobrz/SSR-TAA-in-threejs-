@@ -5,7 +5,9 @@
   "main": "index.js",
   "dependencies": {
     "canvas-confetti": "^1.4.0",
-    "snowpack": "^3.5.4"
+    "dat.gui": "^0.7.7",
+    "snowpack": "^3.5.4",
+    "three": "^0.129.0"
   },
   "devDependencies": {},
   "scripts": {
