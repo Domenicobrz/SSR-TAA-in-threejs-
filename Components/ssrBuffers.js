@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Vector3 } from "three";
+import { Vector2, Vector3 } from "three";
 import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 import { defaultWhiteTexture, defaultBlackTexture } from "./defaultTextures";
@@ -34,7 +34,12 @@ export default class SSRBuffers {
             uniforms: {
                 uRoughness: { value: 1 },
                 uMetalness: { value: 1 },
+                uBaseF0:    { value: 0.05 },
+                uMeshId:    { value: 0 },
                 uAlbedo:    { value: new Vector3(1,1,1) },
+                uAlbedoMapRepeat: { value: new Vector2(1,1) },
+                uRoughnessMapRepeat: { value: new Vector2(1,1) },
+                uMetalnessMapRepeat: { value: new Vector2(1,1) },
 
                 uRoughnessMap: { type: "t", value: null },
                 uMetalnessMap: { type: "t", value: null },
@@ -82,7 +87,12 @@ export default class SSRBuffers {
 
                 uniform float uRoughness;
                 uniform float uMetalness;
+                uniform float uBaseF0;
+                uniform float uMeshId;
                 uniform vec3  uAlbedo;
+                uniform vec2  uAlbedoMapRepeat;
+                uniform vec2  uRoughnessMapRepeat;
+                uniform vec2  uMetalnessMapRepeat;
 
                 uniform sampler2D uRoughnessMap;
                 uniform sampler2D uMetalnessMap;
@@ -94,14 +104,14 @@ export default class SSRBuffers {
 			    layout(location = 3) out vec4 out_material;
 
                 void main() {
-                    float roughness = texture(uRoughnessMap, vUv).x * uRoughness;
-                    float metalness = texture(uMetalnessMap, vUv).y * uMetalness;
-                    vec3 albedo     = texture(uAlbedoMap, vUv).xyz * uAlbedo;
+                    float roughness = texture(uRoughnessMap, vUv * uRoughnessMapRepeat).x * uRoughness;
+                    float metalness = texture(uMetalnessMap, vUv * uMetalnessMapRepeat).y * uMetalness;
+                    vec3 albedo     = texture(uAlbedoMap, vUv * uAlbedoMapRepeat).xyz * uAlbedo;
 
                     out_normal      = vec4(normalize(vNormal), 1.0);
                     out_position    = vec4(vPosition, vDepth);
                     out_albedo      = vec4(albedo, 0.0);
-                    out_material    = vec4(roughness, metalness, 0.0, 0.0);
+                    out_material    = vec4(roughness, metalness, uBaseF0, uMeshId);
                 }
             `,
 
@@ -131,12 +141,17 @@ export default class SSRBuffers {
 
             mesh.savedMaterial = mesh.material;
             mesh.material = this.bufferMaterial;
+            mesh.material.uniforms.uRoughnessMapRepeat.value = mesh.savedMaterial.roughnessMap?.repeat || new THREE.Vector2(1,1);
+            mesh.material.uniforms.uMetalnessMapRepeat.value = mesh.savedMaterial.metalnessMap?.repeat || new THREE.Vector2(1,1);
+            mesh.material.uniforms.uAlbedoMapRepeat.value = mesh.savedMaterial.map?.repeat || new THREE.Vector2(1,1);
             mesh.material.uniforms.uAlbedoMap.value    = mesh.savedMaterial.map          || defaultWhiteTexture;
             mesh.material.uniforms.uRoughnessMap.value = mesh.savedMaterial.roughnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uMetalnessMap.value = mesh.savedMaterial.metalnessMap || defaultWhiteTexture;
             mesh.material.uniforms.uAlbedo.value       = mesh.savedMaterial.color     || new Vector3(1,1,1);
             mesh.material.uniforms.uRoughness.value    = mesh.savedMaterial.roughness || 1;
             mesh.material.uniforms.uMetalness.value    = mesh.savedMaterial.metalness || 0;
+            mesh.material.uniforms.uBaseF0.value       = mesh.savedMaterial.baseF0 || 0.05;
+            mesh.material.uniforms.uMeshId.value       = mesh.savedMaterial.meshId || 0;
     
             // remember: momentBufferScene will always hold 1 single object each time render() is called
             this.bufferScene.add(mesh);
