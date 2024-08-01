@@ -410,6 +410,7 @@ f1.add(guiControls, "preset", {
   updateGUI();
 });
 f1.open();
+f2.open();
 
 let updateGUI = function () {
   for (let folder in gui.__folders) {
