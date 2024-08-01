@@ -3,74 +3,84 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class SSR {
-    constructor(renderer, sceneCamera, controls, normalTexture, positionTexture, albedoTexture, materialTexture, colorRT, oldPosRT, oldNormRT, blueNoiseTexture) {
-        let sizeVector = new THREE.Vector2();
-        renderer.getSize(sizeVector);
-        this.sizeVector = sizeVector;
-      
-        let rts = [];
-        for(let i = 0; i < 2; i++) {
-            let renderTarget = new THREE.WebGLMultipleRenderTargets(
-                sizeVector.x * 1,
-                sizeVector.y * 1,
-                2
-            );
+  constructor(
+    renderer,
+    sceneCamera,
+    controls,
+    normalTexture,
+    positionTexture,
+    albedoTexture,
+    materialTexture,
+    colorRT,
+    oldPosRT,
+    oldNormRT,
+    blueNoiseTexture
+  ) {
+    let sizeVector = new THREE.Vector2();
+    renderer.getSize(sizeVector);
+    this.sizeVector = sizeVector;
 
-            for ( let j = 0, il = renderTarget.texture.length; j < il; j ++ ) {
-                renderTarget.texture[ j ].minFilter = THREE.NearestFilter;
-                renderTarget.texture[ j ].magFilter = THREE.NearestFilter;
-                renderTarget.texture[ j ].type = THREE.FloatType;
-            }
+    let rts = [];
+    for (let i = 0; i < 2; i++) {
+      let renderTarget = new THREE.WebGLMultipleRenderTargets(
+        sizeVector.x * 1,
+        sizeVector.y * 1,
+        2
+      );
 
-            renderTarget.texture[ 0 ].name = 'ssrColor';
-            renderTarget.texture[ 1 ].name = 'ssrUv';
+      for (let j = 0, il = renderTarget.texture.length; j < il; j++) {
+        renderTarget.texture[j].minFilter = THREE.NearestFilter;
+        renderTarget.texture[j].magFilter = THREE.NearestFilter;
+        renderTarget.texture[j].type = THREE.FloatType;
+      }
 
-            rts.push(renderTarget);
-        }
-        
-        this.SSRRT = {
-            read:  rts[0],
-            write: rts[1],
-            swap: function() {
-                let temp   = this.read;
-                this.read  = this.write;
-                this.write = temp;
-            },
-            setSize: function(w, h) {
-                rts[0].setSize(w, h);
-                rts[1].setSize(w, h);
-            },
-        }
+      renderTarget.texture[0].name = "ssrColor";
+      renderTarget.texture[1].name = "ssrUv";
 
+      rts.push(renderTarget);
+    }
 
+    this.SSRRT = {
+      read: rts[0],
+      write: rts[1],
+      swap: function () {
+        let temp = this.read;
+        this.read = this.write;
+        this.write = temp;
+      },
+      setSize: function (w, h) {
+        rts[0].setSize(w, h);
+        rts[1].setSize(w, h);
+      },
+    };
 
-        this.material = new THREE.RawShaderMaterial({
-            uniforms: {
-                uTAA:            { type: "t", value: null },
-                uOldSSRColor:    { type: "t", value: null },
-                uOldSSRUv:       { type: "t", value: null },
-                uOldPosition:    { type: "t", value: oldPosRT.texture },
-                uPosition:       { type: "t", value: positionTexture },
-                uOldNormal:      { type: "t", value: oldNormRT.texture },
-                uNormal:         { type: "t", value: normalTexture },
-                uAlbedo:         { type: "t", value: albedoTexture },
-                uMaterial:       { type: "t", value: materialTexture },
-                uColor:          { type: "t", value: colorRT.texture },
-                uEnvmap:         { type: "t", value: null },
-                uOldCameraPos:   { value: new THREE.Vector3(0,0,0) },
-                uCameraPos:      { value: new THREE.Vector3(0,0,0) },
-                uCameraTarget:   { value: new THREE.Vector3(0,0,0) },
-                uRandoms:        { value: new THREE.Vector4(0,0,0,0) },
-                uTime:           { value: 0 },
-                uSamples:        { value: 2 },
-                uUncompressedEnv: { value: false },
-                uAccumTimeFactor: { value: 0.92 },
-                uOldViewMatrix:  { value: new THREE.Matrix4() },
-                uBlueNoise:      { type: "t", value: blueNoiseTexture },
-                uBlueNoiseIndex: { value: new THREE.Vector4(0,0,0,0) },
-            },
-            
-            vertexShader: `
+    this.material = new THREE.RawShaderMaterial({
+      uniforms: {
+        uTAA: { type: "t", value: null },
+        uOldSSRColor: { type: "t", value: null },
+        uOldSSRUv: { type: "t", value: null },
+        uOldPosition: { type: "t", value: oldPosRT.texture },
+        uPosition: { type: "t", value: positionTexture },
+        uOldNormal: { type: "t", value: oldNormRT.texture },
+        uNormal: { type: "t", value: normalTexture },
+        uAlbedo: { type: "t", value: albedoTexture },
+        uMaterial: { type: "t", value: materialTexture },
+        uColor: { type: "t", value: colorRT.texture },
+        uEnvmap: { type: "t", value: null },
+        uOldCameraPos: { value: new THREE.Vector3(0, 0, 0) },
+        uCameraPos: { value: new THREE.Vector3(0, 0, 0) },
+        uCameraTarget: { value: new THREE.Vector3(0, 0, 0) },
+        uRandoms: { value: new THREE.Vector4(0, 0, 0, 0) },
+        uTime: { value: 0 },
+        uSamples: { value: 2 },
+        uUncompressedEnv: { value: false },
+        uAccumTimeFactor: { value: 0.92 },
+        uOldViewMatrix: { value: new THREE.Matrix4() },
+        uBlueNoise: { type: "t", value: blueNoiseTexture },
+        uBlueNoiseIndex: { value: new THREE.Vector4(0, 0, 0, 0) },
+      },
+
+      vertexShader: `
                 in vec3 position;
 			    in vec3 normal;
 			    in vec2 uv;
@@ -95,7 +105,7 @@ export default class SSR {
                 }
             `,
 
-            fragmentShader: `
+      fragmentShader: `
                 precision highp float;
 			    precision highp int;
 
@@ -242,7 +252,6 @@ export default class SSR {
                     float a = roughness * roughness;
                     float nm2 = pow(dot(N, H), 2.0);
                     return (a * a) / (PI * pow( nm2 * ( a * a - 1.0 ) + 1.0, 2.0));
-
 
                     // float a      = roughness*roughness;
                     // float a2     = a*a;
@@ -515,20 +524,13 @@ export default class SSR {
 
                     vec4 taaBuffer = texture2D(uTAA, vUv);
                     vec2 oldUvs    = taaBuffer.xy;
-                    float accum    = min(taaBuffer.z, 10.0);
-
-                    float det = min(length(uOldCameraPos - uCameraPos) * 0.35, 0.65);
-                    // since the reflection-reprojection method (mentioned as oldSSR1 later) of accumulating previous values 
-                    // tends to blur the result over time,
-                    // we're trying to reduce the roughness such that the perceived difference between the two methods is minimal 
-                    // we're only applying this fix between roughness in [0.2 ... 0.4] since it works best in that range
-                    // if(roughness > 0.2 && roughness < 0.4 && det > 0.5) roughness *= 0.75;
-                    if(roughness > 0.2) {
-                        roughness *= 1.0 - (det / 0.6) * 0.3;
-                    }
+                    const float MAX_ACCUM_COUNT = 10.0;
+                    float accum    = min(taaBuffer.z, MAX_ACCUM_COUNT);
                    
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
+
+                    float debugVar = 0.0;
 
                     vec4 intersectionPointAverage = vec4(0.0);
                     float intersectionPointAverageSamples = 0.0; // I can't just reference "samples" since some sample might fail
@@ -599,18 +601,7 @@ export default class SSR {
                         vec4 fragCol = vec4(0.0);
     
                         if(useTAA) {
-                            float t = (accum * 0.1) * uAccumTimeFactor;
-
-                            // exponential temporal average also depends on how rough the surface is
-                            t *= pow(min(roughness / 0.175, 1.0), 0.5);
-
-
-                            // vec3 oldSpecularDir = normalize(texture2D(uOldSSRUv, vUv + taaBuffer.xy).xyz);
-                            // float specDot = dot(oldSpecularDir, specularReflectionDir);
-
-                            // // if we moved the camera too much, lower t (taaBuffer has momentMove in uv space) 
-                            // float dist = clamp(length(taaBuffer.xy) / 0.01, 0.0, 1.0);
-                            // t *= 1.0 - dist;
+                            float t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
 
                             // note that all of this is not perfect, since p2 should really be the "old" intersection
                             // point, but since we don't know it's moveDelta, we can't reproject the previous
@@ -619,75 +610,27 @@ export default class SSR {
                             vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
                             vec3 oldCameraPos = uOldCameraPos;
 
-                            // vec3 repr_p;
-                            // intersect(ro, specularReflectionDir, repr_p, lastP);
-
-                            vec3 ssrp = find_reflection_incident_point(
-                                 oldCameraPos, p2, oldWorldPosition, oldNormal);
-
-                            if(!intersected) {
-                                ssrp = find_reflection_incident_point(
-                                    oldCameraPos, lastP, oldWorldPosition, oldNormal);
-
-                                // ssrp = find_reflection_incident_point(
-                                //     oldCameraPos, ro + specularReflectionDir * 100.0, oldWorldPosition, oldNormal);
-                            }
-                            
-                            vec4 np = vProjectionMatrix * uOldViewMatrix * vec4(ssrp, 1.0);
-                            np.xyzw /= np.w;
-                            np.xy = np.xy * 0.5 + 0.5;
-
-                            if(np.x < 0.0 || np.x > 1.0 || np.y < 0.0 || np.y > 1.0) {
-                                np.xy = vUv + taaBuffer.xy;
-                            }
-
-
-                            // "oldSSR" non rappresenta più il vecchio ssr color, perchè ogni volta
-                            // prendiamo il colore da un pixel diverso (perchè il ground è rough)
-                            // prima invece prendevamo sempre "lo stesso" vecchio pixel, dato dalla proiezione
-                            // also non considerare tutto quello che ho detto per vero, questa è una supposizione
-                            // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * 0.5 + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * 0.5;
-
-
-                            vec3 oldSSR1;
-                            for(int i = -1; i <= 1; i++) {
-                                for(int j = -1; j <= 1; j++) {
-                                    oldSSR1 += texture2D(uOldSSRColor, np.xy + vec2(0.0015 * float(i), 0.0015 * float(j))).xyz * (1.0 / 9.0);
-                                }
-                            }
-
-                            // vec3 oldSSR2;
-                            // for(int i = -1; i <= 1; i++) {
-                            //     for(int j = -1; j <= 1; j++) {
-                            //         oldSSR2 += texture2D(uOldSSRColor, vUv + taaBuffer.xy + vec2(0.0015 * float(i), 0.0015 * float(j))).xyz * (1.0 / 9.0);
-                            //     }
-                            // }
-
-                            // vec3 oldSSR = texture2D(uOldSSRColor, np.xy).xyz * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
-                            vec3 oldSSR = oldSSR1 * det + texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz * (1.0 - det);
-                            // vec3 oldSSR = oldSSR1 * det + oldSSR2 * (1.0 - det);
-
-
-
-                            // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-
+                            vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
                             vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
 
-                            if(intersected) {
+                            if (intersected) {
                                 vec3 newCol = mult * (1.0 - t) + oldSSR * t;
                                 sum += vec4(newCol, 0.0);
-                            } else if(accum > 0.0) {
+                                debugVar = 1.0;
+                            } else if (accum > 0.0) {
                                 // this one makes a cool effect too
                                 // sum += vec4(oldSSR, 0.0);
 
                                 vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
                                 sum += vec4(envColor, 0.0);
+                                debugVar = 2.0;
                             } else {
                                 vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
                                 // effectiveSamples -= 1;
                                 sum += vec4(envColor, 0.0);
+                                debugVar = 3.0;
                             }
                         } else {
                             if(intersected) {
@@ -698,29 +641,33 @@ export default class SSR {
 
                     sum /= float(effectiveSamples);
 
+                    // if (sum.z > 0.2) {
+                    // if (debugVar > 1.5 && debugVar < 2.5) {
+                    //     sum = vec4(1.0, 0.0, 0.0, 0.0);
+                    // }
+
                     out_SSRColor        = vec4(sum.xyz, 1.0);
                     out_SSRIntersection = intersectionPointAverage / max(intersectionPointAverageSamples, 1.0);
                 }
             `,
-            glslVersion: THREE.GLSL3,
-            depthTest:  false,
-            depthWrite: false,
-        });
+      glslVersion: THREE.GLSL3,
+      depthTest: false,
+      depthWrite: false,
+    });
 
+    this.applySSRMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uSSR: { type: "t", value: null },
+        uColor: { type: "t", value: colorRT.texture },
+        uAlbedo: { type: "t", value: albedoTexture },
+        uMaterial: { type: "t", value: materialTexture },
+        uPosition: { type: "t", value: positionTexture },
+        uNormal: { type: "t", value: normalTexture },
+        uCameraPos: { value: new THREE.Vector3(0, 0, 0) },
+        uPostReflMult: { value: 1 },
+      },
 
-        this.applySSRMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uSSR:       { type: "t", value: null },
-                uColor:     { type: "t", value: colorRT.texture },
-                uAlbedo:    { type: "t", value: albedoTexture },
-                uMaterial:  { type: "t", value: materialTexture },
-                uPosition:  { type: "t", value: positionTexture },
-                uNormal:    { type: "t", value: normalTexture },
-                uCameraPos: { value: new THREE.Vector3(0,0,0) },
-                uPostReflMult: { value: 1},
-            },
-            
-            vertexShader: `
+      vertexShader: `
                 varying vec2 vUv;
 
                 void main() {
@@ -729,7 +676,7 @@ export default class SSR {
                 }
             `,
 
-            fragmentShader: `
+      fragmentShader: `
                 uniform sampler2D uSSR;
                 uniform sampler2D uColor;
                 uniform sampler2D uMaterial;
@@ -787,127 +734,144 @@ export default class SSR {
                 }
             `,
 
-            depthTest:  false,
-            depthWrite: false,
-        });
+      depthTest: false,
+      depthWrite: false,
+    });
 
-        this.mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2,2), this.material);
-        this.mesh.frustumCulled = false;
-        this.renderer = renderer;
+    this.mesh = new THREE.Mesh(
+      new THREE.PlaneBufferGeometry(2, 2),
+      this.material
+    );
+    this.mesh.frustumCulled = false;
+    this.renderer = renderer;
 
-        this.scene = new THREE.Scene();
-        this.scene.add(this.mesh);
+    this.scene = new THREE.Scene();
+    this.scene.add(this.mesh);
 
-        this.sceneCamera = sceneCamera;
-        this.controls = controls;
+    this.sceneCamera = sceneCamera;
+    this.controls = controls;
 
-        this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
-        this.lastCameraPos = this.sceneCamera.position.clone();
+    this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
+    this.lastCameraPos = this.sceneCamera.position.clone();
 
-        this.clock = new THREE.Clock();
-        this.blueNoiseIndex = new THREE.Vector4(0,0,0,0);
+    this.clock = new THREE.Clock();
+    this.blueNoiseIndex = new THREE.Vector4(0, 0, 0, 0);
+  }
+
+  compute(TAART, envmap, options) {
+    this.SSRRT.swap();
+    this.renderer.setRenderTarget(this.SSRRT.write);
+
+    this.mesh.material = this.material;
+    this.material.uniforms.uOldViewMatrix.value = this.lastViewMatrixInverse;
+    this.material.uniforms.uOldCameraPos.value.set(
+      this.lastCameraPos.x,
+      this.lastCameraPos.y,
+      this.lastCameraPos.z
+    );
+    this.material.uniforms.uCameraPos.value = this.sceneCamera.position;
+    this.material.uniforms.uCameraTarget.value = this.controls.target;
+    this.material.uniforms.uOldSSRColor.value = this.SSRRT.read.texture[0];
+    this.material.uniforms.uOldSSRUv.value = this.SSRRT.read.texture[1];
+    this.material.uniforms.uTAA.value = TAART;
+    this.material.uniforms.uUncompressedEnv.value = options.uncompressedEnv;
+    this.material.uniforms.uSamples.value = options.samples;
+    this.material.uniforms.uEnvmap.value = envmap;
+    this.material.uniforms.uRandoms.value = new THREE.Vector4(
+      Math.random(),
+      Math.random(),
+      Math.random(),
+      Math.random()
+    );
+    this.material.uniforms.uTime.value = this.clock.getElapsedTime();
+    this.material.uniforms.uAccumTimeFactor.value = options.accumTimeFactor;
+    // this.blueNoiseIndex.setX(++this.blueNoiseIndex.x % 512);
+    this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
+    this.blueNoiseIndex.setY(Math.floor(Math.random() * 512));
+    this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;
+    this.renderer.render(this.scene, this.sceneCamera);
+
+    this.renderer.setRenderTarget(null);
+  }
+
+  apply(ssrTexture, renderTargetDest, options) {
+    this.renderer.setRenderTarget(renderTargetDest);
+
+    this.mesh.material = this.applySSRMaterial;
+    this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
+    this.applySSRMaterial.uniforms.uCameraPos.value = this.sceneCamera.position;
+    this.applySSRMaterial.uniforms.uPostReflMult.value = options.multiplier;
+    this.renderer.render(this.scene, this.sceneCamera);
+
+    this.renderer.setRenderTarget(null);
+
+    this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
+    this.lastCameraPos = this.sceneCamera.position.clone();
+  }
+
+  setSize(resolution) {
+    switch (resolution) {
+      case "Quarter":
+        this.SSRRT.setSize(
+          Math.floor(this.sizeVector.x * 0.25),
+          Math.floor(this.sizeVector.y * 0.25)
+        );
+        break;
+      case "Half":
+        this.SSRRT.setSize(
+          Math.floor(this.sizeVector.x * 0.5),
+          Math.floor(this.sizeVector.y * 0.5)
+        );
+        break;
+      case "Full":
+        this.SSRRT.setSize(this.sizeVector.x, this.sizeVector.y);
+        break;
     }
-
-    compute(TAART, envmap, options) {
-        this.SSRRT.swap();
-        this.renderer.setRenderTarget(this.SSRRT.write);
-
-        this.mesh.material = this.material;
-        this.material.uniforms.uOldViewMatrix.value = this.lastViewMatrixInverse;
-        this.material.uniforms.uOldCameraPos.value.set(this.lastCameraPos.x, this.lastCameraPos.y, this.lastCameraPos.z);
-        this.material.uniforms.uCameraPos.value    = this.sceneCamera.position;
-        this.material.uniforms.uCameraTarget.value = this.controls.target;
-        this.material.uniforms.uOldSSRColor.value  = this.SSRRT.read.texture[0];
-        this.material.uniforms.uOldSSRUv.value     = this.SSRRT.read.texture[1];
-        this.material.uniforms.uTAA.value     = TAART;
-        this.material.uniforms.uUncompressedEnv.value = options.uncompressedEnv;
-        this.material.uniforms.uSamples.value = options.samples;
-        this.material.uniforms.uEnvmap.value  = envmap;
-        this.material.uniforms.uRandoms.value = new THREE.Vector4(Math.random(), Math.random(), Math.random(), Math.random());
-        this.material.uniforms.uTime.value = this.clock.getElapsedTime();
-        this.material.uniforms.uAccumTimeFactor.value = options.accumTimeFactor;
-        // this.blueNoiseIndex.setX(++this.blueNoiseIndex.x % 512);
-        this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
-        this.blueNoiseIndex.setY(Math.floor(Math.random() * 512));
-        this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;
-        this.renderer.render(this.scene, this.sceneCamera);
-
-        this.renderer.setRenderTarget(null);
-    }
-
-    apply(ssrTexture, renderTargetDest, options) {
-        this.renderer.setRenderTarget(renderTargetDest);
-
-        this.mesh.material = this.applySSRMaterial;
-        this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
-        this.applySSRMaterial.uniforms.uCameraPos.value = this.sceneCamera.position;
-        this.applySSRMaterial.uniforms.uPostReflMult.value = options.multiplier;
-        this.renderer.render(this.scene, this.sceneCamera);
-
-        this.renderer.setRenderTarget(null);
-
-
-        this.lastViewMatrixInverse = this.sceneCamera.matrixWorldInverse.clone();
-        this.lastCameraPos = this.sceneCamera.position.clone();
-    }
-
-    setSize(resolution) {
-        switch(resolution) {
-            case "Quarter":
-                this.SSRRT.setSize(Math.floor(this.sizeVector.x * 0.25), Math.floor(this.sizeVector.y * 0.25));
-                break;
-            case "Half":
-                this.SSRRT.setSize(Math.floor(this.sizeVector.x * 0.5), Math.floor(this.sizeVector.y * 0.5));
-                break;
-            case "Full":
-                this.SSRRT.setSize(this.sizeVector.x, this.sizeVector.y);
-                break;
-        }
-    }
+  }
 }
 
-export let SSRMaterial = function(args) {
-    let baseMaterial = new THREE.MeshStandardMaterial(args);
-    baseMaterial.baseF0 = args.baseF0;
-    baseMaterial.meshId = args.meshId;
+export let SSRMaterial = function (args) {
+  let baseMaterial = new THREE.MeshStandardMaterial(args);
+  baseMaterial.baseF0 = args.baseF0;
+  baseMaterial.meshId = args.meshId;
 
-    // remove envmap reflections from this material (we could also remove analytical lights but we decided to keep them for now)
-    baseMaterial.onBeforeCompile = (shader) => {
-        // "unroll" the entire shader
-        shader.fragmentShader = Utils.parseIncludes(shader.fragmentShader); 
+  // remove envmap reflections from this material (we could also remove analytical lights but we decided to keep them for now)
+  baseMaterial.onBeforeCompile = (shader) => {
+    // "unroll" the entire shader
+    shader.fragmentShader = Utils.parseIncludes(shader.fragmentShader);
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            // line to replace...
-            "radiance += getLightProbeIndirectRadiance( geometry.viewDir, geometry.normal, material.specularRoughness, maxMipLevel );", 
-            "", 
-        );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      // line to replace...
+      "radiance += getLightProbeIndirectRadiance( geometry.viewDir, geometry.normal, material.specularRoughness, maxMipLevel );",
+      ""
+    );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            // line to replace...
-            "BRDF_Specular_Multiscattering_Environment( geometry, material.specularColor, material.specularRoughness, singleScattering, multiScattering );", 
-            "", 
-        );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      // line to replace...
+      "BRDF_Specular_Multiscattering_Environment( geometry, material.specularColor, material.specularRoughness, singleScattering, multiScattering );",
+      ""
+    );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            "reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;",
-            "reflectedLight.indirectSpecular = vec3(0.0);",
-        );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;",
+      "reflectedLight.indirectSpecular = vec3(0.0);"
+    );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            "gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );",
-            "",
-        );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );",
+      ""
+    );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            "gl_FragColor = linearToOutputTexel( gl_FragColor );",
-            "",
-        );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "gl_FragColor = linearToOutputTexel( gl_FragColor );",
+      ""
+    );
 
-        // shader.fragmentShader = shader.fragmentShader.replace(
-        //     "reflectedLight.indirectDiffuse += diffuse * cosineWeightedIrradiance;",
-        //     "",
-        // );
-    };
+    // shader.fragmentShader = shader.fragmentShader.replace(
+    //     "reflectedLight.indirectDiffuse += diffuse * cosineWeightedIrradiance;",
+    //     "",
+    // );
+  };
 
-    return baseMaterial;
-}
+  return baseMaterial;
+};
