@@ -24,7 +24,19 @@ let camera = new THREE.PerspectiveCamera(
   1000
 );
 // camera.position.set(0, 2, 57);
-camera.position.set(-10, 18, 45);
+camera.position.set(-10, 18, 75);
+let blockNextFrame = false;
+
+window.addEventListener("keypress", (e) => {
+  if (e.key == "k") {
+    blockNextFrame = true;
+
+    setTimeout(() => {
+      camera.position.set(-32, 18, 70);
+      animate();
+    }, 100);
+  }
+});
 
 let renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.shadowMap.enabled = true;
@@ -109,7 +121,7 @@ new RGBELoader()
     scene.add(ground);
 
     let ground2 = new THREE.Mesh(
-      new THREE.BoxBufferGeometry(100, 30, 2),
+      new THREE.BoxBufferGeometry(100, 60, 2),
       SSRMaterial({
         color: 0xffffff,
         envMap: envmap,
@@ -118,7 +130,7 @@ new RGBELoader()
         map: new THREE.TextureLoader().load("assets/graffiti.jpg"),
       })
     );
-    ground2.position.set(0, 5, -50);
+    ground2.position.set(0, 15, -50);
     ground2.material.roughness = 1;
     ground2.material.metalness = 0;
     scene.add(ground2);
@@ -269,6 +281,9 @@ let oldPosRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
 let oldNormRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
   type: THREE.FloatType,
 });
+let oldMaterialRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
+  type: THREE.FloatType,
+});
 
 let SSRBuffersProgram = new SSRBuffers(innerWidth, innerHeight);
 let TAAProgram = new TAA(
@@ -290,6 +305,7 @@ let SSRProgram = new SSR(
   colorRT,
   oldPosRT,
   oldNormRT,
+  oldMaterialRT,
   blueNoise512
 );
 let AtrousProgram = new Atrous(
@@ -333,6 +349,7 @@ function animate() {
 
   blitProgram.blit(SSRBuffersProgram.GBuffer.texture[0], oldNormRT);
   blitProgram.blit(SSRBuffersProgram.GBuffer.texture[1], oldPosRT);
+  blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], oldMaterialRT);
 
   SSRBuffersProgram.compute(renderer, scene, camera);
   // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
@@ -354,7 +371,9 @@ function animate() {
   // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
   // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
 
-  requestAnimationFrame(animate);
+  if (!blockNextFrame) {
+    requestAnimationFrame(animate);
+  }
 }
 
 animate();

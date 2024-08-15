@@ -14,6 +14,7 @@ export default class SSR {
     colorRT,
     oldPosRT,
     oldNormRT,
+    oldMaterialRT,
     blueNoiseTexture
   ) {
     let sizeVector = new THREE.Vector2();
@@ -64,6 +65,7 @@ export default class SSR {
         uOldNormal: { type: "t", value: oldNormRT.texture },
         uNormal: { type: "t", value: normalTexture },
         uAlbedo: { type: "t", value: albedoTexture },
+        uOldMaterial: { type: "t", value: oldMaterialRT.texture },
         uMaterial: { type: "t", value: materialTexture },
         uColor: { type: "t", value: colorRT.texture },
         uEnvmap: { type: "t", value: null },
@@ -117,6 +119,7 @@ export default class SSR {
                 uniform sampler2D uOldNormal;
                 uniform sampler2D uNormal;
                 uniform sampler2D uAlbedo;
+                uniform sampler2D uOldMaterial;
                 uniform sampler2D uMaterial;
                 uniform sampler2D uColor;
                 uniform sampler2D uTAA;
@@ -297,6 +300,20 @@ export default class SSR {
                     // return ggx1 * ggx2;
                 }
 
+                vec3 findReflectionPoint(
+                  vec3 point, vec3 cameraPos, vec3 planeOrigin, vec3 planeNormal
+                ) {
+                  float p1d = dot(point - planeOrigin, planeNormal);
+                  float p2d = dot(cameraPos - planeOrigin, planeNormal);
+
+                  vec3 p1_planeProj = point - p1d * planeNormal;
+                  vec3 p2_planeProj = cameraPos - p2d * planeNormal;
+
+                  float t = p1d / (p1d + p2d);
+
+                  return (p2_planeProj - p1_planeProj) * t + p1_planeProj;
+                } 
+
                 float V_SmithGGXCorrelatedFast(vec3 N, vec3 V, vec3 L, float roughness) {
                     float NoV = dot(N, V);
                     float NoL = dot(N, L);
@@ -391,9 +408,11 @@ export default class SSR {
                 bool intersect(
                     vec3 ro, vec3 rd, 
                     out vec3 intersectionP,
-                    out vec3 lastP) 
+                    out vec3 lastP,
+                    bool useJitter
+                ) 
                 {
-                    bool jitter = true;
+                    bool jitter = useJitter;
                     float startingStep = 0.05;
                     float stepMult = 1.15;
                     const int steps = 40;
@@ -414,7 +433,8 @@ export default class SSR {
                         // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
                         // float jittA = 0.5 + rand(p) * 0.5;
                         float jittA = fract(rand(p) + uRandoms.x);
-                        if(!jitter) jittA = 1.0;
+                        // float jittA = fract(uRandoms.x);
+                        if (!jitter) jittA = 1.0;
                         // jittA = 0.0;
                         float jittB = 1.0 - jittA;
 
@@ -520,6 +540,7 @@ export default class SSR {
                     float roughness = material.x;
                     float metalness = material.y;
                     float baseF0    = material.z;
+                    float meshId    = material.w;
 
 
                     vec4 taaBuffer = texture2D(uTAA, vUv);
@@ -532,8 +553,45 @@ export default class SSR {
 
                     float debugVar = 0.0;
 
-                    vec4 intersectionPointAverage = vec4(0.0);
-                    float intersectionPointAverageSamples = 0.0; // I can't just reference "samples" since some sample might fail
+
+                    // **********************************************
+                    // **********************************************
+                    // **********************************************
+                    vec3 p3;
+                    vec3 lastP3;
+                    vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
+                    bool intersected3 = intersect(ro3, specularReflectionDir, p3, lastP3, false);
+                    // p2 assumed in world position
+                    // pos and normal assumed in world position
+                    // ************ IMPORTANT ************
+                    // in all of this, I'm assuming the plane (pos, normal) didn't 
+                    // move / rotate / scale in the previous frame, this could be wrong
+                    // also P2 could have been moved / rotated / scaled
+                    // at some point we should also probably do the planarity test 
+                    // they had defined on the paper
+                    vec3 oldReflPoint = findReflectionPoint(intersected3 ? p3 : lastP3, uOldCameraPos, pos, norm);
+                    vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
+                    vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
+                    vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
+                    float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
+
+                    float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
+                    float intersectionMeshId = -1.0;
+                    if (intersected3) {
+                      vec4 projP = vProjViewMatrix * vec4(p3, 1.0);
+                      vec2 pNdc = (projP / projP.w).xy;
+                      vec2 pUv  = pNdc * 0.5 + 0.5;
+                      intersectionMeshId = texture2D(uMaterial, pUv).w;
+                    }
+                    out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
+                    // **********************************************
+                    // **********************************************
+                    // **********************************************
+
+
+
+
+
                     int samples = uSamples;
                     int effectiveSamples = samples;
                     for(int s = 0; s < samples; s++) {
@@ -563,7 +621,7 @@ export default class SSR {
 
                         vec3 p2;
                         vec3 lastP;
-                        bool intersected = intersect(ro, rd, p2, lastP);
+                        bool intersected = intersect(ro, rd, p2, lastP, true);
 
                         vec3 F0 = vec3(baseF0);
                         F0 = mix(F0, albedo.xyz, metalness);
@@ -586,16 +644,10 @@ export default class SSR {
 
                             mult *= brdf;
                             mult /= max(pdf, 0.00001);
-
-                            intersectionPointAverage += vec4(p2, 1.0);
-                            intersectionPointAverageSamples += 1.0;
                         } else {
                             // intersection is invalid
                             // mult = vec3(0.0);
-                            intersectionPointAverage += vec4(ro + rd * 100.0, 1.0);
-                            intersectionPointAverageSamples += 1.0;
                         }
-                    
 
                         bool useTAA = true;
                         vec4 fragCol = vec4(0.0);
@@ -610,7 +662,16 @@ export default class SSR {
                             vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
                             vec3 oldCameraPos = uOldCameraPos;
 
-                            vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            if (abs(meshId - oldMeshId) > 0.5) {
+                              t = 0.0;
+                            }
+                            if (abs(intersectionMeshId - oldIntersectionMeshId) > 0.5) {
+                              t = 0.0;
+                            }
+
+                            // sum = vec4(abs(intersectionMeshId - oldIntersectionMeshId) > 0.5 ? 1.0 : 0.0, 0.0, 0.0, 0.0);
+
+                            // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
 
                             vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
 
@@ -618,6 +679,7 @@ export default class SSR {
                                 vec3 newCol = mult * (1.0 - t) + oldSSR * t;
                                 sum += vec4(newCol, 0.0);
                                 debugVar = 1.0;
+                                
                             } else if (accum > 0.0) {
                                 // this one makes a cool effect too
                                 // sum += vec4(oldSSR, 0.0);
@@ -647,7 +709,6 @@ export default class SSR {
                     // }
 
                     out_SSRColor        = vec4(sum.xyz, 1.0);
-                    out_SSRIntersection = intersectionPointAverage / max(intersectionPointAverageSamples, 1.0);
                 }
             `,
       glslVersion: THREE.GLSL3,
