@@ -24,7 +24,7 @@ let camera = new THREE.PerspectiveCamera(
   1000
 );
 // camera.position.set(0, 2, 57);
-camera.position.set(-10, 18, 75);
+camera.position.set(-10, 48, 45);
 let blockNextFrame = false;
 
 window.addEventListener("keypress", (e) => {
@@ -32,7 +32,7 @@ window.addEventListener("keypress", (e) => {
     blockNextFrame = true;
 
     setTimeout(() => {
-      camera.position.set(-32, 18, 70);
+      camera.position.set(-32, 48, 40);
       animate();
     }, 100);
   }
@@ -137,135 +137,135 @@ new RGBELoader()
 
     const loader = new GLTFLoader();
 
-    // load a resource
-    loader.load(
-      // resource URL
-      "assets/angelLR2.glb",
-      // called when resource is loaded
-      function (object) {
-        let mesh = object.scene.children[0];
+    // // load a resource
+    // loader.load(
+    //   // resource URL
+    //   "assets/angelLR2.glb",
+    //   // called when resource is loaded
+    //   function (object) {
+    //     let mesh = object.scene.children[0];
 
-        for (let i = 0; i < 1; i++) {
-          let nm = mesh.clone();
+    //     for (let i = 0; i < 1; i++) {
+    //       let nm = mesh.clone();
 
-          let color = new THREE.Color(1, 1, 1);
-          if (i === 1) color = new THREE.Color(1, 0.3, 0.365);
-          if (i === 2) color = new THREE.Color(0.6, 1, 0.35);
+    //       let color = new THREE.Color(1, 1, 1);
+    //       if (i === 1) color = new THREE.Color(1, 0.3, 0.365);
+    //       if (i === 2) color = new THREE.Color(0.6, 1, 0.35);
 
-          nm.material = SSRMaterial({
-            color: color,
-            map: new THREE.TextureLoader().load(
-              "assets/uv_2k.jpg",
-              (texture) => {
-                texture.flipY = false;
-              }
-            ),
-            envMap: envmap,
-            roughness: 1,
-            metalness: 0,
-            meshId: meshIdCounter++,
-          });
-          nm.castShadow = true;
-          nm.receiveShadow = true;
+    //       nm.material = SSRMaterial({
+    //         color: color,
+    //         map: new THREE.TextureLoader().load(
+    //           "assets/uv_2k.jpg",
+    //           (texture) => {
+    //             texture.flipY = false;
+    //           }
+    //         ),
+    //         envMap: envmap,
+    //         roughness: 1,
+    //         metalness: 0,
+    //         meshId: meshIdCounter++,
+    //       });
+    //       nm.castShadow = true;
+    //       nm.receiveShadow = true;
 
-          nm.scale.set(0.5, 0.5, 0.5);
-          nm.position.set(9, -5, 4);
-          nm.rotation.z = 0.2;
+    //       nm.scale.set(0.5, 0.5, 0.5);
+    //       nm.position.set(9, -5, 4);
+    //       nm.rotation.z = 0.2;
 
-          scene.add(nm);
-        }
+    //       scene.add(nm);
+    //     }
+    //   }
+    // );
 
-        let sphere = new Mesh(
-          new SphereBufferGeometry(2.5, 20, 20),
-          new SSRMaterial({
-            color: new THREE.Color(1, 0.3, 0.365),
-            map: new THREE.TextureLoader().load("assets/jkhr7.png"),
-            envMap: envmap,
-            roughness: 0.01,
-            metalness: 0,
-            baseF0: 1,
-            meshId: meshIdCounter++,
-          })
-        );
-        sphere.rotation.y = -Math.PI * 0.6;
-        sphere.position.set(-6.5, -2, 4.5);
-        scene.add(sphere);
-      }
+    let sphere = new Mesh(
+      new SphereBufferGeometry(2.5, 20, 20),
+      new SSRMaterial({
+        color: new THREE.Color(1, 0.3, 0.365),
+        map: new THREE.TextureLoader().load("assets/jkhr7.png"),
+        envMap: envmap,
+        roughness: 0.01,
+        metalness: 0,
+        baseF0: 1,
+        meshId: meshIdCounter++,
+      })
     );
+    sphere.rotation.y = -Math.PI * 0.6;
+    sphere.position.set(-6.5, -2, 4.5);
+    scene.add(sphere);
 
-    // load a resource
-    loader.load(
-      // resource URL
-      "assets/CashRegister_01_4k_no_mat.glb",
-      // called when resource is loaded
-      function (object) {
-        let mesh = object.scene.children[0].children[0];
-        mesh.material = SSRMaterial({
-          color: new THREE.Color(1, 1, 1),
-          envMap: envmap,
-          map: new THREE.TextureLoader().load(
-            "assets/CashRegister_01_diff_2k.jpg",
-            (texture) => {
-              texture.flipY = false;
-            }
-          ),
-          roughnessMap: new THREE.TextureLoader().load(
-            "assets/CashRegister_01_roughness_2k.jpg",
-            (texture) => {
-              texture.flipY = false;
-            }
-          ),
-          metalnessMap: new THREE.TextureLoader().load(
-            "assets/CashRegister_01_metallic_2k.jpg",
-            (texture) => {
-              texture.flipY = false;
-            }
-          ),
-          // normalMap: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg"),
-          roughness: 1,
-          metalness: 0,
-          meshId: meshIdCounter++,
-          baseF0: 0.05,
-        });
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.scale.set(15, 15, 15);
-        mesh.position.set(0, -4, 0);
+    // // load a resource
+    // loader.load(
+    //   // resource URL
+    //   "assets/CashRegister_01_4k_no_mat.glb",
+    //   // called when resource is loaded
+    //   function (object) {
+    //     let mesh = object.scene.children[0].children[0];
+    //     mesh.material = SSRMaterial({
+    //       color: new THREE.Color(1, 1, 1),
+    //       envMap: envmap,
+    //       map: new THREE.TextureLoader().load(
+    //         "assets/CashRegister_01_diff_2k.jpg",
+    //         (texture) => {
+    //           texture.flipY = false;
+    //         }
+    //       ),
+    //       roughnessMap: new THREE.TextureLoader().load(
+    //         "assets/CashRegister_01_roughness_2k.jpg",
+    //         (texture) => {
+    //           texture.flipY = false;
+    //         }
+    //       ),
+    //       metalnessMap: new THREE.TextureLoader().load(
+    //         "assets/CashRegister_01_metallic_2k.jpg",
+    //         (texture) => {
+    //           texture.flipY = false;
+    //         }
+    //       ),
+    //       // normalMap: new THREE.TextureLoader().load("assets/CashRegister_01_diff_2k.jpg"),
+    //       roughness: 1,
+    //       metalness: 0,
+    //       meshId: meshIdCounter++,
+    //       baseF0: 0.05,
+    //     });
+    //     mesh.castShadow = true;
+    //     mesh.receiveShadow = true;
+    //     mesh.scale.set(15, 15, 15);
+    //     mesh.position.set(0, -4, 0);
 
-        scene.add(mesh);
-      }
-    );
+    //     scene.add(mesh);
+    //   }
+    // );
 
-    // load a resource
-    loader.load(
-      // resource URL
-      "assets/BarberShopChair_01_2k.glb",
-      // called when resource is loaded
-      function (object) {
-        let mesh = object.scene.children[0];
-        mesh.material = SSRMaterial({
-          color: new THREE.Color(1, 1, 1),
-          envMap: envmap,
-          map: new THREE.TextureLoader().load(
-            "assets/BarberShopChair_01_diff_2k.jpg",
-            (texture) => {
-              texture.flipY = false;
-            }
-          ),
-          roughness: 0.05,
-          metalness: 0,
-          meshId: meshIdCounter++,
-          baseF0: 0.05,
-        });
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.scale.set(8, 8, 8);
-        mesh.rotation.y = -Math.PI * 0.5;
-        mesh.position.set(-10, -4, 0);
+    // // load a resource
+    // loader.load(
+    //   // resource URL
+    //   "assets/BarberShopChair_01_2k.glb",
+    //   // called when resource is loaded
+    //   function (object) {
+    //     let mesh = object.scene.children[0];
+    //     mesh.material = SSRMaterial({
+    //       color: new THREE.Color(1, 1, 1),
+    //       envMap: envmap,
+    //       map: new THREE.TextureLoader().load(
+    //         "assets/BarberShopChair_01_diff_2k.jpg",
+    //         (texture) => {
+    //           texture.flipY = false;
+    //         }
+    //       ),
+    //       roughness: 0.05,
+    //       metalness: 0,
+    //       meshId: meshIdCounter++,
+    //       baseF0: 0.05,
+    //     });
+    //     mesh.castShadow = true;
+    //     mesh.receiveShadow = true;
+    //     mesh.scale.set(8, 8, 8);
+    //     mesh.rotation.y = -Math.PI * 0.5;
+    //     mesh.position.set(-10, -4, 0);
 
-        scene.add(mesh);
-      }
-    );
+    //     scene.add(mesh);
+    //   }
+    // );
   });
 
 let colorRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {

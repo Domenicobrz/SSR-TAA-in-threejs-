@@ -669,6 +669,18 @@ export default class SSR {
                               t = 0.0;
                             }
 
+                            // // in this case, there's no need to do the fancy reprojection,
+                            // // since that will cause ghosting anyway, in the case where 
+                            // // we're not intersecting anything let's just default to plain
+                            // // prev reprojection
+                            // if (intersectionMeshId < 0.0) {
+                            //   float reoldIntersectionMeshId = texture2D(uOldSSRUv, vUv + taaBuffer.xy).x;
+                            //   if (reoldIntersectionMeshId < 0.0) {
+                            //     oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            //     t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
+                            //   }
+                            // }
+
                             // sum = vec4(abs(intersectionMeshId - oldIntersectionMeshId) > 0.5 ? 1.0 : 0.0, 0.0, 0.0, 0.0);
 
                             // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
