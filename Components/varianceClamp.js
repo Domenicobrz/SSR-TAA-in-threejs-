@@ -100,12 +100,14 @@ export default class VarianceClamp {
             }
           }
 
-          
+
           // what to do next:
           // I'm missing all the meshId checks I was doing in ssr.js
           // something cool I've already noticed: by increasing the number of samples,
           // the ghosting is already diminished if we compare both methods! 
           // (with and without clamping)
+          // --- NOTE: you're also using p3 and lastP3 since unfortunately the 
+          // paper motion vectors are still not working
 
 
           // Clamp previous color to min/max bounding box
