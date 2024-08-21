@@ -554,39 +554,41 @@ export default class SSR {
                     float debugVar = 0.0;
 
 
-                    // **********************************************
-                    // **********************************************
-                    // **********************************************
+                    // // **********************************************
+                    // // **********************************************
+                    // // **********************************************
                     vec3 p3;
                     vec3 lastP3;
                     vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
                     bool intersected3 = intersect(ro3, specularReflectionDir, p3, lastP3, false);
-                    // p2 assumed in world position
-                    // pos and normal assumed in world position
-                    // ************ IMPORTANT ************
-                    // in all of this, I'm assuming the plane (pos, normal) didn't 
-                    // move / rotate / scale in the previous frame, this could be wrong
-                    // also P2 could have been moved / rotated / scaled
-                    // at some point we should also probably do the planarity test 
-                    // they had defined on the paper
-                    vec3 oldReflPoint = findReflectionPoint(intersected3 ? p3 : lastP3, uOldCameraPos, pos, norm);
-                    vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
-                    vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
-                    vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
-                    float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
+                    out_SSRIntersection = vec4(intersected3 ? p3 : lastP3, intersected3 ? 0.0 : -1.0);
+                    
+                    // // p2 assumed in world position
+                    // // pos and normal assumed in world position
+                    // // ************ IMPORTANT ************
+                    // // in all of this, I'm assuming the plane (pos, normal) didn't 
+                    // // move / rotate / scale in the previous frame, this could be wrong
+                    // // also P2 could have been moved / rotated / scaled
+                    // // at some point we should also probably do the planarity test 
+                    // // they had defined on the paper
+                    // vec3 oldReflPoint = findReflectionPoint(intersected3 ? p3 : lastP3, uOldCameraPos, pos, norm);
+                    // vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
+                    // vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
+                    // vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
+                    // float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
 
-                    float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
-                    float intersectionMeshId = -1.0;
-                    if (intersected3) {
-                      vec4 projP = vProjViewMatrix * vec4(p3, 1.0);
-                      vec2 pNdc = (projP / projP.w).xy;
-                      vec2 pUv  = pNdc * 0.5 + 0.5;
-                      intersectionMeshId = texture2D(uMaterial, pUv).w;
-                    }
-                    out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
-                    // **********************************************
-                    // **********************************************
-                    // **********************************************
+                    // float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
+                    // float intersectionMeshId = -1.0;
+                    // if (intersected3) {
+                    //   vec4 projP = vProjViewMatrix * vec4(p3, 1.0);
+                    //   vec2 pNdc = (projP / projP.w).xy;
+                    //   vec2 pUv  = pNdc * 0.5 + 0.5;
+                    //   intersectionMeshId = texture2D(uMaterial, pUv).w;
+                    // }
+                    // out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
+                    // // **********************************************
+                    // // **********************************************
+                    // // **********************************************
 
                 
                     int samples = uSamples;
@@ -659,9 +661,12 @@ export default class SSR {
 
                             mult *= brdf;
                             mult /= max(pdf, 0.00001);
+
+                            // out_SSRIntersection = vec4(p2, 0.0);
                         } else {
                             // intersection is invalid
                             // mult = vec3(0.0);
+                            // out_SSRIntersection = vec4(lastP, -1.0);
                         }
 
                         bool useTAA = true;
@@ -670,31 +675,31 @@ export default class SSR {
                         if(useTAA) {
                             float t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
 
-                            // note that all of this is not perfect, since p2 should really be the "old" intersection
-                            // point, but since we don't know it's moveDelta, we can't reproject the previous
-                            // position so this will cause inaccurate results  
-                            vec3 oldWorldPosition = texture2D(uOldPosition, vUv + taaBuffer.xy).xyz;
-                            vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
-                            vec3 oldCameraPos = uOldCameraPos;
+                            // // note that all of this is not perfect, since p2 should really be the "old" intersection
+                            // // point, but since we don't know it's moveDelta, we can't reproject the previous
+                            // // position so this will cause inaccurate results  
+                            // vec3 oldWorldPosition = texture2D(uOldPosition, vUv + taaBuffer.xy).xyz;
+                            // vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
+                            // vec3 oldCameraPos = uOldCameraPos;
 
-                            if (abs(meshId - oldMeshId) > 0.5) {
-                              t = 0.0;
-                            }
-                            if (abs(intersectionMeshId - oldIntersectionMeshId) > 0.5) {
-                              t = 0.0;
-                            }
-
-                            // // in this case, there's no need to do the fancy reprojection,
-                            // // since that will cause ghosting anyway, in the case where 
-                            // // we're not intersecting anything let's just default to plain
-                            // // prev reprojection
-                            // if (intersectionMeshId < 0.0) {
-                            //   float reoldIntersectionMeshId = texture2D(uOldSSRUv, vUv + taaBuffer.xy).x;
-                            //   if (reoldIntersectionMeshId < 0.0) {
-                            //     oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-                            //     t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
-                            //   }
+                            // if (abs(meshId - oldMeshId) > 0.5) {
+                            //   t = 0.0;
                             // }
+                            // if (abs(intersectionMeshId - oldIntersectionMeshId) > 0.5) {
+                            //   t = 0.0;
+                            // }
+
+                            // // // // in this case, there's no need to do the fancy reprojection,
+                            // // // // since that will cause ghosting anyway, in the case where 
+                            // // // // we're not intersecting anything let's just default to plain
+                            // // // // prev reprojection
+                            // // // if (intersectionMeshId < 0.0) {
+                            // // //   float reoldIntersectionMeshId = texture2D(uOldSSRUv, vUv + taaBuffer.xy).x;
+                            // // //   if (reoldIntersectionMeshId < 0.0) {
+                            // // //     oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+                            // // //     t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
+                            // // //   }
+                            // // // }
 
                             // sum = vec4(abs(intersectionMeshId - oldIntersectionMeshId) > 0.5 ? 1.0 : 0.0, 0.0, 0.0, 0.0);
 
@@ -703,21 +708,22 @@ export default class SSR {
                             vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
 
                             if (intersected) {
-                                vec3 newCol = mult * (1.0 - t) + oldSSR * t;
-                                sum += vec4(newCol, 0.0);
-                                debugVar = 1.0;
+                                // vec3 newCol = mult * (1.0 - t) + oldSSR * t;
+                                // sum += vec4(newCol, 0.0);
+                                // debugVar = 1.0;
                                 
-                            } else if (accum > 0.0) {
-                                // this one makes a cool effect too
-                                // sum += vec4(oldSSR, 0.0);
+                                sum += vec4(mult, 0.0);
 
-                                vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
-                                // effectiveSamples -= 1;
+                            } else if (accum > 0.0) {
+                                // vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
+                                vec3 envColor = getEnvmapRadiance(rd) * fresnel;
+
                                 sum += vec4(envColor, 0.0);
                                 debugVar = 2.0;
                             } else {
-                                vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
-                                // effectiveSamples -= 1;
+                                // vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
+                                vec3 envColor = getEnvmapRadiance(rd) * fresnel; 
+
                                 sum += vec4(envColor, 0.0);
                                 debugVar = 3.0;
                             }

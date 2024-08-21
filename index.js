@@ -14,6 +14,8 @@ import { defaultWhiteTexture } from "./Components/defaultTextures";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { Mesh, SphereBufferGeometry } from "three";
 import * as dat from "dat.gui";
+import VarianceClamp from "./Components/varianceClamp";
+import DoubleRT from "./Components/doubleRT";
 
 let scene = new THREE.Scene();
 
@@ -277,6 +279,7 @@ let colorRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
 });
+let varianceClampRT = DoubleRT(innerWidth, innerHeight, THREE.LinearFilter);
 let oldPosRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
   type: THREE.FloatType,
   minFilter: THREE.LinearFilter,
@@ -311,6 +314,12 @@ let SSRProgram = new SSR(
   oldNormRT,
   oldMaterialRT,
   blueNoise512
+);
+let VarianceClampProgram = new VarianceClamp(
+  varianceClampRT,
+  SSRBuffersProgram.GTextures.normal,
+  SSRBuffersProgram.GTextures.position,
+  renderer
 );
 let AtrousProgram = new Atrous(
   renderer,
@@ -364,8 +373,9 @@ function animate() {
   renderer.shadowMap.needsUpdate = false;
 
   SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
+  VarianceClampProgram.compute(SSRProgram, TAAProgram, camera, guiControls);
   AtrousProgram.compute(
-    SSRProgram.SSRRT.write.texture[0],
+    varianceClampRT.write.texture,
     TAAProgram.momentMoveRT.write.texture,
     guiControls.atrousSteps
   );
