@@ -24,7 +24,7 @@ let camera = new THREE.PerspectiveCamera(
   1000
 );
 // camera.position.set(0, 2, 57);
-camera.position.set(-10, 48, 45);
+camera.position.set(0, 8, 65);
 let blockNextFrame = false;
 
 window.addEventListener("keypress", (e) => {
@@ -32,7 +32,10 @@ window.addEventListener("keypress", (e) => {
     blockNextFrame = true;
 
     setTimeout(() => {
-      camera.position.set(-32, 48, 40);
+      // camera.position.set(-32, 48, 40);
+      camera.position.set(-10, 8, 65);
+      controls.target.set(0 - 10, 0, 0);
+
       animate();
     }, 100);
   }
@@ -49,7 +52,8 @@ renderer.shadowMap.autoUpdate = false;
 document.body.appendChild(renderer.domElement);
 
 let controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(1.1, -1.1, 0.7);
+// controls.target.set(1.1, -1.1, 0.7);
+controls.target.set(0, 0, 0);
 
 let clock = new THREE.Clock();
 clock.start();
@@ -137,45 +141,45 @@ new RGBELoader()
 
     const loader = new GLTFLoader();
 
-    // // load a resource
-    // loader.load(
-    //   // resource URL
-    //   "assets/angelLR2.glb",
-    //   // called when resource is loaded
-    //   function (object) {
-    //     let mesh = object.scene.children[0];
+    // load a resource
+    loader.load(
+      // resource URL
+      "assets/angelLR2.glb",
+      // called when resource is loaded
+      function (object) {
+        let mesh = object.scene.children[0];
 
-    //     for (let i = 0; i < 1; i++) {
-    //       let nm = mesh.clone();
+        for (let i = 0; i < 1; i++) {
+          let nm = mesh.clone();
 
-    //       let color = new THREE.Color(1, 1, 1);
-    //       if (i === 1) color = new THREE.Color(1, 0.3, 0.365);
-    //       if (i === 2) color = new THREE.Color(0.6, 1, 0.35);
+          let color = new THREE.Color(1, 1, 1);
+          if (i === 1) color = new THREE.Color(1, 0.3, 0.365);
+          if (i === 2) color = new THREE.Color(0.6, 1, 0.35);
 
-    //       nm.material = SSRMaterial({
-    //         color: color,
-    //         map: new THREE.TextureLoader().load(
-    //           "assets/uv_2k.jpg",
-    //           (texture) => {
-    //             texture.flipY = false;
-    //           }
-    //         ),
-    //         envMap: envmap,
-    //         roughness: 1,
-    //         metalness: 0,
-    //         meshId: meshIdCounter++,
-    //       });
-    //       nm.castShadow = true;
-    //       nm.receiveShadow = true;
+          nm.material = SSRMaterial({
+            color: color,
+            map: new THREE.TextureLoader().load(
+              "assets/uv_2k.jpg",
+              (texture) => {
+                texture.flipY = false;
+              }
+            ),
+            envMap: envmap,
+            roughness: 1,
+            metalness: 0,
+            meshId: meshIdCounter++,
+          });
+          nm.castShadow = true;
+          nm.receiveShadow = true;
 
-    //       nm.scale.set(0.5, 0.5, 0.5);
-    //       nm.position.set(9, -5, 4);
-    //       nm.rotation.z = 0.2;
+          nm.scale.set(0.5, 0.5, 0.5);
+          nm.position.set(9, -5, 4);
+          nm.rotation.z = 0.2;
 
-    //       scene.add(nm);
-    //     }
-    //   }
-    // );
+          scene.add(nm);
+        }
+      }
+    );
 
     let sphere = new Mesh(
       new SphereBufferGeometry(2.5, 20, 20),

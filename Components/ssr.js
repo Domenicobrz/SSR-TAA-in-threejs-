@@ -588,10 +588,7 @@ export default class SSR {
                     // **********************************************
                     // **********************************************
 
-
-
-
-
+                
                     int samples = uSamples;
                     int effectiveSamples = samples;
                     for(int s = 0; s < samples; s++) {
@@ -622,6 +619,24 @@ export default class SSR {
                         vec3 p2;
                         vec3 lastP;
                         bool intersected = intersect(ro, rd, p2, lastP, true);
+
+
+                        // // // vec3 oldReflPoint = findReflectionPoint(intersected ? p2 : lastP, uOldCameraPos, pos, norm);
+                        // // // vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
+                        // // // vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
+                        // // // vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
+                        // // // float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
+
+                        // // // float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
+                        // // // float intersectionMeshId = -1.0;
+                        // // // if (intersected) {
+                        // // //   vec4 projP = vProjViewMatrix * vec4(p2, 1.0);
+                        // // //   vec2 pNdc = (projP / projP.w).xy;
+                        // // //   vec2 pUv  = pNdc * 0.5 + 0.5;
+                        // // //   intersectionMeshId = texture2D(uMaterial, pUv).w;
+                        // // // }
+                        // // // out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
+
 
                         vec3 F0 = vec3(baseF0);
                         F0 = mix(F0, albedo.xyz, metalness);
