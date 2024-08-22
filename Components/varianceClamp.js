@@ -4,11 +4,20 @@ import Utils from "./utils";
 import { defaultWhiteTexture, defaultBlackTexture } from "./defaultTextures";
 
 export default class VarianceClamp {
-  constructor(drt, normalTexture, positionTexture, renderer) {
+  constructor(
+    drt,
+    normalTexture,
+    positionTexture,
+    materialTexture,
+    oldMaterialTexture,
+    renderer
+  ) {
     this.drt = drt;
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
+        uOldMaterial: { type: "t", value: oldMaterialTexture },
+        uMaterial: { type: "t", value: materialTexture },
         uPosition: { type: "t", value: positionTexture },
         uNormal: { type: "t", value: normalTexture },
         uOldSSRColor: { type: "t", value: null },
@@ -39,6 +48,8 @@ export default class VarianceClamp {
         varying vec2 vUv;
         varying mat4 vProjectionMatrix;
 
+        uniform sampler2D uOldMaterial;
+        uniform sampler2D uMaterial;
         uniform sampler2D uPosition;
         uniform sampler2D uNormal;
         uniform sampler2D uOldSSRColor;
@@ -71,19 +82,31 @@ export default class VarianceClamp {
           vec3 pos      = posTexel.xyz;
           float depth   = posTexel.w;
           vec3 norm     = normalize(texture2D(uNormal, vUv).xyz);
+          vec4 material = texture2D(uMaterial, vUv);
+          float meshId  = material.w;
 
           vec4 ssrInt = texture2D(uSSRIntersection, vUv);
+          float reflectionMeshId = ssrInt.w;
 
           vec3 oldReflPoint = findReflectionPoint(ssrInt.xyz, uOldCameraPos, pos, norm);
           vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
           vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
           vec3 reprojectedColor = texture2D(uOldSSRColor, p3Uv).xyz;
-          // vec3 reprojectedColor = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+
+          float oldReflectionMeshId = texture2D(uOldSSRIntersection, p3Uv).w;
+          float reprojectedSurfaceMeshId = texture2D(uOldMaterial, p3Uv).w;
 
           vec4 taaBuffer = texture2D(uTAA, vUv);
           const float MAX_ACCUM_COUNT = 10.0;
           float accum = min(taaBuffer.z, MAX_ACCUM_COUNT);
           float a = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
+
+          if (abs(meshId - reprojectedSurfaceMeshId) > 0.5) {
+            a = 0.0;
+          }
+          if (abs(reflectionMeshId - oldReflectionMeshId) > 0.5) {
+            a = 0.0;
+          }
 
           // neighbor search + AABB clamping
           vec3 minColor = vec3(999.0);
@@ -114,6 +137,17 @@ export default class VarianceClamp {
           vec3 previousColorClamped = clamp(reprojectedColor, minColor, maxColor);
           vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
           gl_FragColor = vec4(fCol, 1.0);
+
+
+          // if (vUv.x < 0.5) {
+          //   vec3 previousColorClamped = clamp(reprojectedColor, minColor, maxColor);
+          //   vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
+          //   gl_FragColor = vec4(fCol, 1.0);
+          // } else {
+          //   vec3 previousColorClamped = reprojectedColor;
+          //   vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
+          //   gl_FragColor = vec4(fCol, 1.0);
+          // }
         }
       `,
       side: THREE.DoubleSide,

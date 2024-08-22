@@ -561,8 +561,19 @@ export default class SSR {
                     vec3 lastP3;
                     vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
                     bool intersected3 = intersect(ro3, specularReflectionDir, p3, lastP3, false);
-                    out_SSRIntersection = vec4(intersected3 ? p3 : lastP3, intersected3 ? 0.0 : -1.0);
                     
+
+                    // ******* find reflection meshId
+                    vec4 pp5 = vProjectionMatrix * vViewMatrix * vec4(p3, 1.0);
+                    vec2 pp5Uv = (pp5 / pp5.w).xy * 0.5 + 0.5;
+                    float reflectionMeshId = texture2D(uMaterial, pp5Uv).w;
+                    out_SSRIntersection = vec4(
+                      intersected3 ? p3 : lastP3, 
+                      intersected3 ? reflectionMeshId : -1.0
+                    );
+                    // ******* find reflection meshId
+
+
                     // // p2 assumed in world position
                     // // pos and normal assumed in world position
                     // // ************ IMPORTANT ************

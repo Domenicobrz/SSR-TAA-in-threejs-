@@ -319,6 +319,8 @@ let VarianceClampProgram = new VarianceClamp(
   varianceClampRT,
   SSRBuffersProgram.GTextures.normal,
   SSRBuffersProgram.GTextures.position,
+  SSRBuffersProgram.GTextures.material,
+  oldMaterialRT.texture,
   renderer
 );
 let AtrousProgram = new Atrous(
