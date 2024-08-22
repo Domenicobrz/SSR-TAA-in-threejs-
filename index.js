@@ -46,7 +46,12 @@ window.addEventListener("keypress", (e) => {
 let renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(
+  innerWidth,
+  innerHeight
+  // Math.floor(innerWidth / 4) * 4,
+  // Math.floor(innerHeight / 4) * 4
+);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.6;
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -69,6 +74,7 @@ export let guiControls = {
   atrousSteps: 1,
   samples: 1,
   accumTimeFactor: 0.9,
+  gamma: 1,
   uncompressedEnv: false,
   resolution: "Full",
   preset: "Medium quality",
@@ -375,12 +381,6 @@ function animate() {
   renderer.shadowMap.needsUpdate = false;
 
   SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
-  // AtrousProgram.compute(
-  //   SSRProgram.SSRRT.write.texture[0],
-  //   TAAProgram.momentMoveRT.write.texture,
-  //   1,
-  //   true
-  // );
   VarianceClampProgram.compute(
     SSRProgram,
     TAAProgram,
@@ -417,6 +417,7 @@ f2.add(guiControls, "multiplier", 0, 2.5);
 f2.add(guiControls, "atrousSteps", 1, 8).step(1);
 f2.add(guiControls, "samples", 1, 20).step(1);
 f2.add(guiControls, "accumTimeFactor", 0, 0.99).step(0.01);
+f2.add(guiControls, "gamma", 0.25, 3.0).step(0.01);
 f2.add(guiControls, "uncompressedEnv");
 f2.add(guiControls, "resolution", {
   Quarter: "Quarter",

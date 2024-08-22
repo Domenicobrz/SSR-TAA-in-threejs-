@@ -35,6 +35,11 @@ export default class SSR {
         renderTarget.texture[j].type = THREE.FloatType;
       }
 
+      renderTarget.texture[0].minFilter = THREE.LinearFilter;
+      renderTarget.texture[0].magFilter = THREE.LinearFilter;
+      // renderTarget.texture[1].minFilter = THREE.LinearFilter;
+      // renderTarget.texture[1].magFilter = THREE.LinearFilter;
+
       renderTarget.texture[0].name = "ssrColor";
       renderTarget.texture[1].name = "ssrUv";
 

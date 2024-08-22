@@ -16,6 +16,11 @@ export default class VarianceClamp {
     renderer.getSize(sizeVector);
     this.sizeVector = sizeVector;
 
+    // apparently if I compare these side by side,
+    // they are *worse* if I activate them
+    this.preFilterSSR = false;
+    this.usingLinearIntersectionBuffer = false;
+
     this.drt = drt;
 
     this.material = new THREE.ShaderMaterial({
@@ -33,7 +38,14 @@ export default class VarianceClamp {
         uOldViewMatrix: { value: new THREE.Matrix4() },
         uOldCameraPos: { value: new THREE.Vector3(0, 0, 0) },
         uAccumTimeFactor: { value: 0.9 },
+        uGamma: { value: 1.0 },
+        uCellSize: { value: new Vector2(1, 1) },
         uInvScreen: { value: new Vector2(1 / innerWidth, 1 / innerHeight) },
+        // this one wont be modified if the SSRT size changes
+        uFullInvScreen: { value: new Vector2(1 / innerWidth, 1 / innerHeight) },
+        uUsingLinearIntersectionBuffer: {
+          value: this.usingLinearIntersectionBuffer,
+        },
       },
 
       vertexShader: `
@@ -65,7 +77,11 @@ export default class VarianceClamp {
         uniform vec3 uOldCameraPos;
         uniform mat4 uOldViewMatrix;
         uniform float uAccumTimeFactor;
+        uniform float uGamma;
+        uniform vec2 uCellSize;
+        uniform vec2 uFullInvScreen;
         uniform vec2 uInvScreen;
+        uniform bool uUsingLinearIntersectionBuffer;
 
         vec3 findReflectionPoint(
           vec3 point, vec3 cameraPos, vec3 planeOrigin, vec3 planeNormal
@@ -95,6 +111,15 @@ export default class VarianceClamp {
           vec3 oldReflPoint = findReflectionPoint(ssrInt.xyz, uOldCameraPos, pos, norm);
           vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
           vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
+
+          if (uUsingLinearIntersectionBuffer) {
+            // I don't know why I have to do this in this case..
+            p3Uv -= vec2(
+              mod(p3Uv.x, uFullInvScreen.x),
+              mod(p3Uv.y, uFullInvScreen.y)
+            ) - uFullInvScreen * 0.5;
+          }
+          
           vec3 reprojectedColor = texture2D(uOldSSRColor, p3Uv).xyz;
 
           float oldReflectionMeshId = texture2D(uOldSSRIntersection, p3Uv).w;
@@ -112,20 +137,42 @@ export default class VarianceClamp {
             a = 0.0;
           }
 
-          // neighbor search + AABB clamping
-          vec3 minColor = vec3(999.0);
-          vec3 maxColor = vec3(-999.0);
+          // // neighbor search + AABB clamping
+          // vec3 minColor = vec3(999.0);
+          // vec3 maxColor = vec3(-999.0);
+          // vec3 currColor = vec3(0.0);
+          // for (int i = -1; i <= 1; i++) {
+          //   for (int j = -1; j <= 1; j++) {
+          //     vec2 offs = vec2(i, j) * uInvScreen;
+          //     vec3 col = texture2D(uSSRColor, vUv + offs).xyz;
+          //     minColor = min(minColor, col);
+          //     maxColor = max(maxColor, col);
+
+          //     if (i == 0 && j == 0) currColor = col;
+          //   }
+          // }
+
+
+          // Salvi, GDC (16) - variance clipping
           vec3 currColor = vec3(0.0);
+          vec3 m1 = vec3(0.0);
+          vec3 m2 = vec3(0.0);
           for (int i = -1; i <= 1; i++) {
             for (int j = -1; j <= 1; j++) {
               vec2 offs = vec2(i, j) * uInvScreen;
               vec3 col = texture2D(uSSRColor, vUv + offs).xyz;
-              minColor = min(minColor, col);
-              maxColor = max(maxColor, col);
-
+              m1 += col;
+              m2 += col * col;
               if (i == 0 && j == 0) currColor = col;
             }
           }
+          // scale down gamma to reduce ghosting - 1 works well - usual ranges: [0.75, 1.25]
+          float gamma = uGamma;
+          float N = 9.0;
+          vec3 mu = m1 / N;
+          vec3 sigma = sqrt(m2 / N - mu * mu);
+          vec3 minColor = mu - gamma * sigma;
+          vec3 maxColor = mu + gamma * sigma;
 
 
           // what to do next:
@@ -153,7 +200,7 @@ export default class VarianceClamp {
           //   gl_FragColor = vec4(fCol, 1.0);
           // }
 
-          // gl_FragColor = vec4(currColor, 1.0);
+          // gl_FragColor = vec4(texture2D(uOldSSRColor, p3Uv).xyz, 1.0);
         }
       `,
       side: THREE.DoubleSide,
@@ -179,11 +226,19 @@ export default class VarianceClamp {
           1 / Math.floor(this.sizeVector.x * 0.25),
           1 / Math.floor(this.sizeVector.y * 0.25)
         );
+        this.material.uniforms.uCellSize.value = new Vector2(
+          this.sizeVector.x / Math.floor(this.sizeVector.x * 0.25),
+          this.sizeVector.y / Math.floor(this.sizeVector.y * 0.25)
+        );
         break;
       case "Half":
         this.material.uniforms.uInvScreen.value = new Vector2(
           1 / Math.floor(this.sizeVector.x * 0.5),
           1 / Math.floor(this.sizeVector.y * 0.5)
+        );
+        this.material.uniforms.uCellSize.value = new Vector2(
+          this.sizeVector.x / Math.floor(this.sizeVector.x * 0.5),
+          this.sizeVector.y / Math.floor(this.sizeVector.y * 0.5)
         );
         break;
       case "Full":
@@ -191,6 +246,7 @@ export default class VarianceClamp {
           1 / this.sizeVector.x,
           1 / this.sizeVector.y
         );
+        this.material.uniforms.uCellSize.value = new Vector2(1, 1);
         break;
     }
   }
@@ -204,6 +260,15 @@ export default class VarianceClamp {
       this.lastCameraPos = sceneCamera.position.clone();
     }
 
+    if (this.usingLinearIntersectionBuffer) {
+      if (SSRProgram.SSRRT.read.texture[1].minFilter != THREE.LinearFilter) {
+        SSRProgram.SSRRT.read.texture[1].minFilter = THREE.LinearFilter;
+        SSRProgram.SSRRT.write.texture[1].minFilter = THREE.LinearFilter;
+        SSRProgram.SSRRT.read.texture[1].magFilter = THREE.LinearFilter;
+        SSRProgram.SSRRT.write.texture[1].magFilter = THREE.LinearFilter;
+      }
+    }
+
     this.material.uniforms.uOldViewMatrix.value = this.lastViewMatrixInverse;
     this.material.uniforms.uOldCameraPos.value.set(
       this.lastCameraPos.x,
@@ -215,14 +280,26 @@ export default class VarianceClamp {
     this.material.uniforms.uOldSSRIntersection.value =
       SSRProgram.SSRRT.read.texture[1];
 
-    this.material.uniforms.uSSRColor.value = SSRProgram.SSRRT.write.texture[0];
-    // this.material.uniforms.uSSRColor.value =
-    //   AtrousProgram.atrousRT.write.texture;
+    if (!this.preFilterSSR) {
+      this.material.uniforms.uSSRColor.value =
+        SSRProgram.SSRRT.write.texture[0];
+    } else {
+      AtrousProgram.compute(
+        SSRProgram.SSRRT.write.texture[0],
+        TAAProgram.momentMoveRT.write.texture,
+        1,
+        true
+      );
+      this.material.uniforms.uSSRColor.value =
+        AtrousProgram.atrousRT.write.texture;
+    }
+
     this.material.uniforms.uSSRIntersection.value =
       SSRProgram.SSRRT.write.texture[1];
 
     this.material.uniforms.uTAA.value = TAAProgram.momentMoveRT.write.texture;
     this.material.uniforms.uAccumTimeFactor.value = guiControls.accumTimeFactor;
+    this.material.uniforms.uGamma.value = guiControls.gamma;
 
     this.renderer.setRenderTarget(this.drt.write);
     this.renderer.render(this.scene, sceneCamera);
