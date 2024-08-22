@@ -4,47 +4,50 @@ import DoubleRT from "./doubleRT";
 import Utils from "./utils";
 
 export default class Atrous {
-    constructor(renderer, normalTexture, positionTexture, SSRRT) {
-        let width  = SSRRT.write.texture[0].image.width;
-        let height = SSRRT.write.texture[0].image.height;
-        this.atrousRT = DoubleRT(width, height, THREE.LinearFilter);
+  constructor(renderer, normalTexture, positionTexture, SSRRT) {
+    let width = SSRRT.write.texture[0].image.width;
+    let height = SSRRT.write.texture[0].image.height;
+    this.atrousRT = DoubleRT(width, height, THREE.LinearFilter);
 
-        this.stepMultiplier = 2;
+    this.stepMultiplier = 2;
 
-        this.material = new THREE.ShaderMaterial({
-            uniforms: {
-                "uSSR":          { type: "t", value: null },
-                "uHistoryAccum": { type: "t", value: null },
-                "uNormal":       { type: "t", value: normalTexture   },
-                "uPosition":     { type: "t", value: positionTexture },
-                "uStep":  { value: 1.0 },
-                "uScreenSize": { value: new THREE.Vector2(width, height) },
-                "uN_phi": { value: 0.0 },
-                "uP_phi": { value: 0.0 },
-            },
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uSSR: { type: "t", value: null },
+        uHistoryAccum: { type: "t", value: null },
+        uNormal: { type: "t", value: normalTexture },
+        uPosition: { type: "t", value: positionTexture },
+        uStep: { value: 1.0 },
+        uScreenSize: { value: new THREE.Vector2(width, height) },
+        uN_phi: { value: 0.0 },
+        uP_phi: { value: 0.0 },
+        uSkipHistoryDemult: { value: 0.0 },
+      },
 
-            side: THREE.DoubleSide,
+      side: THREE.DoubleSide,
 
-            defines: {
-                "atrous3x3": true,
-                "atrous5x5": false,
-            },
+      defines: {
+        atrous3x3: true,
+        atrous5x5: false,
+      },
 
-            vertexShader: `
+      vertexShader: `
                 varying vec2 vUv;
                 
                 void main() {
                     gl_Position = vec4(position, 1.0);
                     vUv = uv;
                 }
-            `,  
+            `,
 
-            fragmentShader: `
+      fragmentShader: `
                 varying vec2 vUv;
                 uniform sampler2D uSSR;
                 uniform sampler2D uPosition;
                 uniform sampler2D uNormal;
                 uniform sampler2D uHistoryAccum;
+                
+                uniform float uSkipHistoryDemult;
 
                 uniform float uStep;
                 uniform vec2  uScreenSize;
@@ -97,9 +100,16 @@ export default class Atrous {
                         return;
                     }
                     float history = texture2D(uHistoryAccum, vUv.st + hstep).z;
-                    // stepwidth *= 1.0 - (1.0 - (10.0 - history) / 10.0);
-                    history = clamp(history, 0.0, 20.0);
-                    stepwidth *= 1.0 - (1.0 - (20.0 - history) / 20.0) * 0.8;
+                    history = clamp(history, 0.0, 10.0);
+
+                    if (uSkipHistoryDemult == 0.0) {
+                        stepwidth *= 1.0 - history / 10.0;
+                    }
+
+                    if (stepwidth == 0.0) {
+                        gl_FragColor = cval;
+                        return;
+                    }
                    
                     float cum_w = 0.0;
                     for(int i = 0; i < loopSteps; i++) {
@@ -131,41 +141,50 @@ export default class Atrous {
                     gl_FragColor = color;
                 }
             `,
-        });
+    });
 
-        this.mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2,2), this.material);
-        this.camera = new THREE.PerspectiveCamera(45, positionTexture.width / positionTexture.height, 0.1, 100);
-        this.renderer = renderer;
+    this.mesh = new THREE.Mesh(
+      new THREE.PlaneBufferGeometry(2, 2),
+      this.material
+    );
+    this.camera = new THREE.PerspectiveCamera(
+      45,
+      positionTexture.width / positionTexture.height,
+      0.1,
+      100
+    );
+    this.renderer = renderer;
 
-        this.scene = new THREE.Scene();
-        this.scene.add(this.mesh);
-    }
+    this.scene = new THREE.Scene();
+    this.scene.add(this.mesh);
+  }
 
-    compute(SSRtexture, TAAtexture, steps) {
+  compute(SSRtexture, TAAtexture, steps, skipHistoryDemult) {
+    this.material.uniforms.uSSR.value = SSRtexture;
+    this.material.uniforms.uHistoryAccum.value = TAAtexture;
+    this.material.uniforms.uSkipHistoryDemult.value = skipHistoryDemult ? 1 : 0;
+
+    for (let i = 0; i < steps; i++) {
+      this.atrousRT.swap();
+      this.renderer.setRenderTarget(this.atrousRT.write);
+
+      if (i === 0) {
+        this.material.uniforms.uN_phi.value = 0.1;
+        this.material.uniforms.uP_phi.value = 10.1;
+
         this.material.uniforms.uSSR.value = SSRtexture;
-        this.material.uniforms.uHistoryAccum.value = TAAtexture;
+        this.material.uniforms.uStep.value = 1.0;
+      } else {
+        this.renderer.setRenderTarget(this.atrousRT.write);
+        this.material.uniforms.uSSR.value = this.atrousRT.read;
+        this.material.uniforms.uStep.value *= this.stepMultiplier;
+      }
 
-        for(let i = 0; i < steps; i++) {
-            this.atrousRT.swap();
-            this.renderer.setRenderTarget(this.atrousRT.write);
-    
-            if(i === 0) {
-                this.material.uniforms.uN_phi.value = 0.1;
-                this.material.uniforms.uP_phi.value = 10.1;
-
-                this.material.uniforms.uSSR.value = SSRtexture;
-                this.material.uniforms.uStep.value  = 1.0;
-            } else {
-                this.renderer.setRenderTarget(this.atrousRT.write);
-                this.material.uniforms.uSSR.value = this.atrousRT.read;
-                this.material.uniforms.uStep.value *= this.stepMultiplier;
-            }
-
-            this.renderer.clear();
-            this.renderer.render(this.scene, this.camera );
-        }
-
-        // this.atrousRT.swap();
-        this.renderer.setRenderTarget(null);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
     }
+
+    // this.atrousRT.swap();
+    this.renderer.setRenderTarget(null);
+  }
 }

@@ -12,6 +12,10 @@ export default class VarianceClamp {
     oldMaterialTexture,
     renderer
   ) {
+    let sizeVector = new THREE.Vector2();
+    renderer.getSize(sizeVector);
+    this.sizeVector = sizeVector;
+
     this.drt = drt;
 
     this.material = new THREE.ShaderMaterial({
@@ -148,6 +152,8 @@ export default class VarianceClamp {
           //   vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
           //   gl_FragColor = vec4(fCol, 1.0);
           // }
+
+          // gl_FragColor = vec4(currColor, 1.0);
         }
       `,
       side: THREE.DoubleSide,
@@ -166,7 +172,30 @@ export default class VarianceClamp {
     this.scene.add(this.mesh);
   }
 
-  compute(SSRProgram, TAAProgram, sceneCamera, guiControls) {
+  setSize(resolution) {
+    switch (resolution) {
+      case "Quarter":
+        this.material.uniforms.uInvScreen.value = new Vector2(
+          1 / Math.floor(this.sizeVector.x * 0.25),
+          1 / Math.floor(this.sizeVector.y * 0.25)
+        );
+        break;
+      case "Half":
+        this.material.uniforms.uInvScreen.value = new Vector2(
+          1 / Math.floor(this.sizeVector.x * 0.5),
+          1 / Math.floor(this.sizeVector.y * 0.5)
+        );
+        break;
+      case "Full":
+        this.material.uniforms.uInvScreen.value = new Vector2(
+          1 / this.sizeVector.x,
+          1 / this.sizeVector.y
+        );
+        break;
+    }
+  }
+
+  compute(SSRProgram, TAAProgram, AtrousProgram, sceneCamera, guiControls) {
     this.drt.swap();
 
     // initialize old camera matrices if they don't exist yet
@@ -187,6 +216,8 @@ export default class VarianceClamp {
       SSRProgram.SSRRT.read.texture[1];
 
     this.material.uniforms.uSSRColor.value = SSRProgram.SSRRT.write.texture[0];
+    // this.material.uniforms.uSSRColor.value =
+    //   AtrousProgram.atrousRT.write.texture;
     this.material.uniforms.uSSRIntersection.value =
       SSRProgram.SSRRT.write.texture[1];
 

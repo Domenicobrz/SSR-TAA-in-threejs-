@@ -375,11 +375,24 @@ function animate() {
   renderer.shadowMap.needsUpdate = false;
 
   SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
-  VarianceClampProgram.compute(SSRProgram, TAAProgram, camera, guiControls);
+  // AtrousProgram.compute(
+  //   SSRProgram.SSRRT.write.texture[0],
+  //   TAAProgram.momentMoveRT.write.texture,
+  //   1,
+  //   true
+  // );
+  VarianceClampProgram.compute(
+    SSRProgram,
+    TAAProgram,
+    AtrousProgram,
+    camera,
+    guiControls
+  );
   AtrousProgram.compute(
     varianceClampRT.write.texture,
     TAAProgram.momentMoveRT.write.texture,
-    guiControls.atrousSteps
+    guiControls.atrousSteps,
+    false
   );
   SSRProgram.apply(AtrousProgram.atrousRT.write.texture, null, guiControls);
 
@@ -411,6 +424,7 @@ f2.add(guiControls, "resolution", {
   Full: "Full",
 }).onChange(() => {
   SSRProgram.setSize(guiControls.resolution);
+  VarianceClampProgram.setSize(guiControls.resolution);
 });
 f1.add(guiControls, "preset", {
   "lowest quality": "Lowest quality",
