@@ -184,23 +184,14 @@ export default class VarianceClamp {
           // paper motion vectors are still not working
 
 
+          // REMEMBER THAT REDUCING THE ATROUS RENDERTARGET SIZE 
+          // IMPROVES PERFORMANCE SIGNIFICANTLY - this coupled with half-res SSR is pretty good
+
+
           // Clamp previous color to min/max bounding box
           vec3 previousColorClamped = clamp(reprojectedColor, minColor, maxColor);
           vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
           gl_FragColor = vec4(fCol, 1.0);
-
-
-          // if (vUv.x < 0.5) {
-          //   vec3 previousColorClamped = clamp(reprojectedColor, minColor, maxColor);
-          //   vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
-          //   gl_FragColor = vec4(fCol, 1.0);
-          // } else {
-          //   vec3 previousColorClamped = reprojectedColor;
-          //   vec3 fCol = currColor * (1.0 - a) + previousColorClamped * a;
-          //   gl_FragColor = vec4(fCol, 1.0);
-          // }
-
-          // gl_FragColor = vec4(texture2D(uOldSSRColor, p3Uv).xyz, 1.0);
         }
       `,
       side: THREE.DoubleSide,

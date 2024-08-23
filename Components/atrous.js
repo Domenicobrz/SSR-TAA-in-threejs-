@@ -5,8 +5,8 @@ import Utils from "./utils";
 
 export default class Atrous {
   constructor(renderer, normalTexture, positionTexture, SSRRT) {
-    let width = innerWidth;
-    let height = innerHeight;
+    let width = innerWidth; // Math.floor(innerWidth / 4);
+    let height = innerHeight; // Math.floor(innerHeight / 4);
     this.atrousRT = DoubleRT(width, height, THREE.LinearFilter);
 
     this.stepMultiplier = 2;
