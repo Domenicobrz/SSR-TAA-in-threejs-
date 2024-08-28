@@ -7,6 +7,8 @@ export default class Atrous {
   constructor(renderer, normalTexture, positionTexture, SSRRT) {
     let width = innerWidth; // Math.floor(innerWidth / 4);
     let height = innerHeight; // Math.floor(innerHeight / 4);
+    // let width = Math.floor(innerWidth / 2);
+    // let height = Math.floor(innerHeight / 2);
     this.atrousRT = DoubleRT(width, height, THREE.LinearFilter);
 
     this.stepMultiplier = 2;
@@ -103,7 +105,7 @@ export default class Atrous {
                     history = clamp(history, 0.0, 10.0);
 
                     if (uSkipHistoryDemult == 0.0) {
-                        // stepwidth *= 1.0 - history / 10.0;
+                        stepwidth *= 1.0 - history / 10.0;
                     }
 
                     if (stepwidth == 0.0) {
