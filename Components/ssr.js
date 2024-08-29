@@ -26,7 +26,7 @@ export default class SSR {
       let renderTarget = new THREE.WebGLMultipleRenderTargets(
         sizeVector.x * 1,
         sizeVector.y * 1,
-        2
+        3
       );
 
       for (let j = 0, il = renderTarget.texture.length; j < il; j++) {
@@ -35,13 +35,16 @@ export default class SSR {
         renderTarget.texture[j].type = THREE.FloatType;
       }
 
-      renderTarget.texture[0].minFilter = THREE.LinearFilter;
-      renderTarget.texture[0].magFilter = THREE.LinearFilter;
+      // renderTarget.texture[0].minFilter = THREE.LinearFilter;
+      // renderTarget.texture[0].magFilter = THREE.LinearFilter;
       // renderTarget.texture[1].minFilter = THREE.LinearFilter;
       // renderTarget.texture[1].magFilter = THREE.LinearFilter;
+      // renderTarget.texture[2].minFilter = THREE.LinearFilter;
+      // renderTarget.texture[2].magFilter = THREE.LinearFilter;
 
       renderTarget.texture[0].name = "ssrColor";
-      renderTarget.texture[1].name = "ssrUv";
+      renderTarget.texture[1].name = "ssrIntersection";
+      renderTarget.texture[2].name = "ssrBrdfPdf";
 
       rts.push(renderTarget);
     }
@@ -80,6 +83,7 @@ export default class SSR {
         uRandoms: { value: new THREE.Vector4(0, 0, 0, 0) },
         uTime: { value: 0 },
         uSamples: { value: 2 },
+        uSampleIndex: { value: 0 },
         uUncompressedEnv: { value: false },
         uAccumTimeFactor: { value: 0.92 },
         uOldViewMatrix: { value: new THREE.Matrix4() },
@@ -117,7 +121,8 @@ export default class SSR {
 			    precision highp int;
 
                 layout(location = 0) out vec4 out_SSRColor;
-			    layout(location = 1) out vec4 out_SSRIntersection;
+			          layout(location = 1) out vec4 out_SSRIntersection;
+			          layout(location = 2) out vec4 out_SSRData;
 
                 uniform sampler2D uOldPosition;
                 uniform sampler2D uPosition;
@@ -133,6 +138,7 @@ export default class SSR {
                 uniform sampler2D uEnvmap;
                 uniform sampler2D uBlueNoise;
 
+                uniform int uSampleIndex;
                 uniform int uSamples;
                 uniform float uTime;
                 uniform bool uUncompressedEnv;
@@ -547,6 +553,8 @@ export default class SSR {
                     float baseF0    = material.z;
                     float meshId    = material.w;
 
+                    vec3 F0 = vec3(baseF0);
+                    F0 = mix(F0, albedo.xyz, metalness);
 
                     vec4 taaBuffer = texture2D(uTAA, vUv);
                     vec2 oldUvs    = taaBuffer.xy;
@@ -606,158 +614,79 @@ export default class SSR {
                     // // **********************************************
                     // // **********************************************
 
-                
-                    int samples = uSamples;
-                    int effectiveSamples = samples;
-                    for(int s = 0; s < samples; s++) {
-                        vec3 wm;
-                        vec3 reflDir = SampleBRDF(viewDir, norm, s, roughness, wm);
-                        reflDir = normalize(reflDir);
-                        
-                        // unfortunately, this even seems very common after a set roughness level
-                        if(dot(reflDir, norm) < 0.0) {
-                            if(effectiveSamples > 1) {
-                                // skip this sample entirely
-                                --effectiveSamples;
-                                continue;
-                            } else {
-                                // one last attempt, and whatever happens happens
-                                reflDir = SampleBRDF(viewDir, norm, s + 79, roughness, wm);
-                            }
-                        }
-
-                        vec3 rd = reflDir;
-                        vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
-                     
-                        vec3 mult = vec3(1.0);
-                        float maxIntersectionDepthDistance = 1.5;
-                        // mult *= max(dot(rd, norm), 0.0);
-    
-
-                        vec3 p2;
-                        vec3 lastP;
-                        bool intersected = intersect(ro, rd, p2, lastP, true);
-
-
-                        // // // vec3 oldReflPoint = findReflectionPoint(intersected ? p2 : lastP, uOldCameraPos, pos, norm);
-                        // // // vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
-                        // // // vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
-                        // // // vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
-                        // // // float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
-
-                        // // // float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
-                        // // // float intersectionMeshId = -1.0;
-                        // // // if (intersected) {
-                        // // //   vec4 projP = vProjViewMatrix * vec4(p2, 1.0);
-                        // // //   vec2 pNdc = (projP / projP.w).xy;
-                        // // //   vec2 pUv  = pNdc * 0.5 + 0.5;
-                        // // //   intersectionMeshId = texture2D(uMaterial, pUv).w;
-                        // // // }
-                        // // // out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
-
-
-                        vec3 F0 = vec3(baseF0);
-                        F0 = mix(F0, albedo.xyz, metalness);
-
-                        vec2 p2Uv;
-                        if(intersected) {
-                            // intersection validated
-                            vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
-                            p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
-                            vec3 color = texture2D(uColor, p2Uv).xyz;
-                            // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
-                            mult *= color;
-                            
-                            // apply pdf and brdf
-                            vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
-                            float pdf = samplePDF(rd, -viewDir, norm, roughness);
-
-                            brdf = clamp(brdf, 0.00001, 100.0);
-                            pdf  = clamp(pdf,  0.1, 100.0);
-
-                            mult *= brdf;
-                            mult /= max(pdf, 0.00001);
-
-                            // out_SSRIntersection = vec4(p2, 0.0);
-                        } else {
-                            // intersection is invalid
-                            // mult = vec3(0.0);
-                            // out_SSRIntersection = vec4(lastP, -1.0);
-                        }
-
-                        bool useTAA = true;
-                        vec4 fragCol = vec4(0.0);
-    
-                        if(useTAA) {
-                            float t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
-
-                            // // note that all of this is not perfect, since p2 should really be the "old" intersection
-                            // // point, but since we don't know it's moveDelta, we can't reproject the previous
-                            // // position so this will cause inaccurate results  
-                            // vec3 oldWorldPosition = texture2D(uOldPosition, vUv + taaBuffer.xy).xyz;
-                            // vec3 oldNormal        = normalize(texture2D(uOldNormal, vUv + taaBuffer.xy).xyz);
-                            // vec3 oldCameraPos = uOldCameraPos;
-
-                            // if (abs(meshId - oldMeshId) > 0.5) {
-                            //   t = 0.0;
-                            // }
-                            // if (abs(intersectionMeshId - oldIntersectionMeshId) > 0.5) {
-                            //   t = 0.0;
-                            // }
-
-                            // // // // in this case, there's no need to do the fancy reprojection,
-                            // // // // since that will cause ghosting anyway, in the case where 
-                            // // // // we're not intersecting anything let's just default to plain
-                            // // // // prev reprojection
-                            // // // if (intersectionMeshId < 0.0) {
-                            // // //   float reoldIntersectionMeshId = texture2D(uOldSSRUv, vUv + taaBuffer.xy).x;
-                            // // //   if (reoldIntersectionMeshId < 0.0) {
-                            // // //     oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-                            // // //     t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
-                            // // //   }
-                            // // // }
-
-                            // sum = vec4(abs(intersectionMeshId - oldIntersectionMeshId) > 0.5 ? 1.0 : 0.0, 0.0, 0.0, 0.0);
-
-                            // vec3 oldSSR = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
-
-                            vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
-
-                            if (intersected) {
-                                // vec3 newCol = mult * (1.0 - t) + oldSSR * t;
-                                // sum += vec4(newCol, 0.0);
-                                // debugVar = 1.0;
-                                
-                                sum += vec4(mult, 0.0);
-
-                            } else if (accum > 0.0) {
-                                // vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
-                                vec3 envColor = getEnvmapRadiance(rd) * fresnel;
-
-                                sum += vec4(envColor, 0.0);
-                                debugVar = 2.0;
-                            } else {
-                                // vec3 envColor = getEnvmapRadiance(rd) * fresnel * (1.0 - t) + oldSSR * t; 
-                                vec3 envColor = getEnvmapRadiance(rd) * fresnel; 
-
-                                sum += vec4(envColor, 0.0);
-                                debugVar = 3.0;
-                            }
-                        } else {
-                            if(intersected) {
-                                sum += vec4(mult, 0.0);
-                            }
-                        }
+                    vec3 wm;
+                    int sampleIndex = uSampleIndex;
+                    vec3 reflDir = SampleBRDF(viewDir, norm, sampleIndex, roughness, wm);
+                    reflDir = normalize(reflDir);
+                    
+                    // unfortunately, this even seems very common after a set roughness level
+                    if(dot(reflDir, norm) < 0.0) {
+                      // one last attempt, and whatever happens happens
+                      reflDir = SampleBRDF(viewDir, norm, sampleIndex + 79, roughness, wm);
                     }
 
-                    sum /= float(effectiveSamples);
+                    vec3 rd = reflDir;
+                    vec3 ro = pos + reflDir * max(0.01, 0.01 * depth);
+                    
+                    float pdf = samplePDF(rd, -viewDir, norm, roughness);
+                    pdf = clamp(pdf, 0.1, 100.0);
 
-                    // if (sum.z > 0.2) {
-                    // if (debugVar > 1.5 && debugVar < 2.5) {
-                    //     sum = vec4(1.0, 0.0, 0.0, 0.0);
-                    // }
+                    vec3 brdf = EvalBRDF(rd, -viewDir, norm, roughness, F0);
+                    brdf = clamp(brdf, 0.00001, 100.0);
+                    
+                    vec3 mult = vec3(1.0);
+                    // mult *= max(dot(rd, norm), 0.0);
+                    // mult *= brdf;
+                    // mult /= max(pdf, 0.00001);
 
-                    out_SSRColor        = vec4(sum.xyz, 1.0);
+                    float maxIntersectionDepthDistance = 1.5;
+
+                    vec3 p2;
+                    vec3 lastP;
+                    bool intersected = intersect(ro, rd, p2, lastP, true);
+
+                    // ********* ! careful here ! **********
+                    // we need the intersection of the sampled BRDF ray, NOT the intersection
+                    // of the specular ray!
+                    out_SSRData = vec4(intersected ? p2 : lastP, pdf);
+                    // out_SSRData = vec4(brdf, pdf);
+
+                    vec2 p2Uv;
+                    if(intersected) {
+                      // intersection validated
+                      vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
+                      p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
+                      vec3 color = texture2D(uColor, p2Uv).xyz;
+                      // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
+                      mult *= color;
+
+                      // out_SSRIntersection = vec4(p2, 0.0);
+                    } else {
+                      // intersection is invalid
+                    }
+
+                    bool useTAA = true;
+                    vec4 fragCol = vec4(0.0);
+    
+                    if(useTAA) {
+                      float t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
+                      // vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
+
+                      if (intersected) {
+                        sum += vec4(mult, 0.0);
+                      } else {
+                        // vec3 envColor = getEnvmapRadiance(rd) * fresnel; 
+                        // sum += vec4(envColor, 0.0);
+                        vec3 envColor = getEnvmapRadiance(rd) * mult; 
+                        sum += vec4(envColor, 0.0);
+                      }
+                    } else {
+                      if(intersected) {
+                        sum += vec4(mult, 0.0);
+                      }
+                    }
+
+                    out_SSRColor = vec4(sum.xyz, 0.0);
                 }
             `,
       glslVersion: THREE.GLSL3,
@@ -768,6 +697,7 @@ export default class SSR {
     this.applySSRMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uSSR: { type: "t", value: null },
+        uSSRData: { type: "t", value: null },
         uColor: { type: "t", value: colorRT.texture },
         uAlbedo: { type: "t", value: albedoTexture },
         uMaterial: { type: "t", value: materialTexture },
@@ -788,6 +718,7 @@ export default class SSR {
 
       fragmentShader: `
                 uniform sampler2D uSSR;
+                uniform sampler2D uSSRData;
                 uniform sampler2D uColor;
                 uniform sampler2D uMaterial;
                 uniform sampler2D uAlbedo;
@@ -803,6 +734,12 @@ export default class SSR {
                     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
                 }
 
+                float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+                  float a = roughness * roughness;
+                  float nv = dot(N, V);
+                  return (2.0 * nv) / (nv + sqrt(a*a + (1.0 - a*a) * nv * nv ));
+                }
+
                 void main() {
                     vec3 ssr      = texture2D(uSSR, vUv).xyz;
                     vec3 col      = texture2D(uColor, vUv).xyz;
@@ -813,13 +750,21 @@ export default class SSR {
 
                     vec3 viewDir = normalize(pos - uCameraPos);
 
-                    // float metalness = material.y;
-                    // float baseF0 = material.z;
-                    // vec3 F0 = vec3(baseF0);
-                    // F0 = mix(F0, albedo.xyz, metalness);
-
-                    // vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
-
+                    float roughness = material.x;
+                    float metalness = material.y;
+                    float baseF0 = material.z;
+                    vec3 F0 = vec3(baseF0);
+                    F0 = mix(F0, albedo.xyz, metalness);
+                    vec3 F = fresnelSchlick(max(dot(norm, -viewDir), 0.0), F0);
+                    vec4 localData = texture2D(uSSRData, vUv);
+                    vec3 intersectionP = localData.xyz;
+                    vec3 wi = normalize(intersectionP - pos);
+                    float G = GeometrySmith(norm, -viewDir, wi, roughness);
+                    if (localData.w > 0.0) {
+                      // ssr = ssr * F * G;
+                      ssr = ssr * F;
+                      // ssr = ssr * G;
+                    }
                     // vec3 kS = F;
 
                     // we don't have to apply these modifiers since they have already been applied by MeshStandardMaterial in the color pass
@@ -868,7 +813,7 @@ export default class SSR {
     this.blueNoiseIndex = new THREE.Vector4(0, 0, 0, 0);
   }
 
-  compute(TAART, envmap, options) {
+  compute(TAART, envmap, options, i) {
     this.SSRRT.swap();
     this.renderer.setRenderTarget(this.SSRRT.write);
 
@@ -886,6 +831,7 @@ export default class SSR {
     this.material.uniforms.uTAA.value = TAART;
     this.material.uniforms.uUncompressedEnv.value = options.uncompressedEnv;
     this.material.uniforms.uSamples.value = options.samples;
+    this.material.uniforms.uSampleIndex.value = i;
     this.material.uniforms.uEnvmap.value = envmap;
     this.material.uniforms.uRandoms.value = new THREE.Vector4(
       Math.random(),
@@ -909,6 +855,7 @@ export default class SSR {
 
     this.mesh.material = this.applySSRMaterial;
     this.applySSRMaterial.uniforms.uSSR.value = ssrTexture;
+    this.applySSRMaterial.uniforms.uSSRData.value = this.SSRRT.write.texture[2];
     this.applySSRMaterial.uniforms.uCameraPos.value = this.sceneCamera.position;
     this.applySSRMaterial.uniforms.uPostReflMult.value = options.multiplier;
     this.renderer.render(this.scene, this.sceneCamera);

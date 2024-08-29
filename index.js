@@ -16,6 +16,7 @@ import { Mesh, SphereBufferGeometry } from "three";
 import * as dat from "dat.gui";
 import VarianceClamp from "./Components/varianceClamp";
 import DoubleRT from "./Components/doubleRT";
+import Resolve from "./Components/resolve";
 
 let scene = new THREE.Scene();
 
@@ -76,6 +77,8 @@ export let guiControls = {
   accumTimeFactor: 0.9,
   gamma: 1,
   uncompressedEnv: false,
+  resolveTaps: 4,
+  disableResolve: false,
   resolution: "Full",
   preset: "Medium quality",
 };
@@ -321,6 +324,13 @@ let SSRProgram = new SSR(
   oldMaterialRT,
   blueNoise512
 );
+let ResolveProgram = new Resolve(
+  SSRBuffersProgram.GTextures.position,
+  SSRBuffersProgram.GTextures.normal,
+  SSRBuffersProgram.GTextures.material,
+  SSRBuffersProgram.GTextures.albedo,
+  renderer
+);
 let VarianceClampProgram = new VarianceClamp(
   varianceClampRT,
   SSRBuffersProgram.GTextures.normal,
@@ -380,11 +390,20 @@ function animate() {
   renderer.render(scene, camera);
   renderer.shadowMap.needsUpdate = false;
 
-  SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
+  // SSRProgram.compute(TAAProgram.momentMoveRT.write, envmapEqui, guiControls);
+  ResolveProgram.compute(
+    TAAProgram,
+    envmapEqui,
+    guiControls,
+    SSRProgram,
+    camera
+  );
+
   VarianceClampProgram.compute(
     SSRProgram,
     TAAProgram,
     AtrousProgram,
+    ResolveProgram,
     camera,
     guiControls
   );
@@ -399,6 +418,7 @@ function animate() {
   // blitProgram.blit(TAAProgram.momentMoveRT.write, null);
   // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
   // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+  // blitProgram.blit(ResolveProgram.drt.write.texture, null);
 
   if (!blockNextFrame) {
     requestAnimationFrame(animate);
@@ -417,8 +437,17 @@ f2.add(guiControls, "multiplier", 0, 2.5);
 f2.add(guiControls, "atrousSteps", 1, 8).step(1);
 f2.add(guiControls, "samples", 1, 20).step(1);
 f2.add(guiControls, "accumTimeFactor", 0, 0.99).step(0.01);
-f2.add(guiControls, "gamma", 0.25, 3.0).step(0.01);
+f2.add(guiControls, "gamma", 0.25, 6.0).step(0.01);
+f2.add(guiControls, "resolveTaps", {
+  4: 4,
+  9: 9,
+  25: 25,
+}).onChange(() => {
+  SSRProgram.setSize(guiControls.resolution);
+  VarianceClampProgram.setSize(guiControls.resolution);
+});
 f2.add(guiControls, "uncompressedEnv");
+f2.add(guiControls, "disableResolve");
 f2.add(guiControls, "resolution", {
   Quarter: "Quarter",
   Half: "Half",

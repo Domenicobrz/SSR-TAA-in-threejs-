@@ -20,6 +20,7 @@ export default class VarianceClamp {
     // they are *worse* if I activate them
     this.preFilterSSR = false;
     this.usingLinearIntersectionBuffer = false;
+    this.keepRTAtFullRes = false;
 
     this.drt = drt;
 
@@ -211,6 +212,8 @@ export default class VarianceClamp {
   }
 
   setSize(resolution) {
+    if (this.keepRTAtFullRes) return;
+
     switch (resolution) {
       case "Quarter":
         this.material.uniforms.uInvScreen.value = new Vector2(
@@ -242,7 +245,14 @@ export default class VarianceClamp {
     }
   }
 
-  compute(SSRProgram, TAAProgram, AtrousProgram, sceneCamera, guiControls) {
+  compute(
+    SSRProgram,
+    TAAProgram,
+    AtrousProgram,
+    ResolveProgram,
+    sceneCamera,
+    guiControls
+  ) {
     this.drt.swap();
 
     // initialize old camera matrices if they don't exist yet
@@ -272,11 +282,10 @@ export default class VarianceClamp {
       SSRProgram.SSRRT.read.texture[1];
 
     if (!this.preFilterSSR) {
-      this.material.uniforms.uSSRColor.value =
-        SSRProgram.SSRRT.write.texture[0];
+      this.material.uniforms.uSSRColor.value = ResolveProgram.drt.write;
     } else {
       AtrousProgram.compute(
-        SSRProgram.SSRRT.write.texture[0],
+        ResolveProgram.drt.write,
         TAAProgram.momentMoveRT.write.texture,
         1,
         true
