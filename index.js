@@ -74,12 +74,14 @@ export let guiControls = {
   multiplier: 1,
   atrousSteps: 1,
   samples: 1,
-  accumTimeFactor: 0.9,
+  // accumTimeFactor: 0.9,
+  accumTimeFactor: 0,
   gamma: 1,
   uncompressedEnv: false,
   resolveTaps: 4,
   disableResolve: false,
-  resolution: "Full",
+  // resolution: "Full",
+  resolution: "Quarter",
   preset: "Medium quality",
 };
 
@@ -329,7 +331,9 @@ let ResolveProgram = new Resolve(
   SSRBuffersProgram.GTextures.normal,
   SSRBuffersProgram.GTextures.material,
   SSRBuffersProgram.GTextures.albedo,
-  renderer
+  colorRT,
+  renderer,
+  blueNoise512
 );
 let VarianceClampProgram = new VarianceClamp(
   varianceClampRT,
@@ -359,6 +363,7 @@ window.addEventListener("keyup", (e) => {
   if (e.key == "l") ldown = false;
 });
 
+let frameCount = 0;
 function animate() {
   let delta = clock.getDelta();
   if (kdown) fov -= 0.15;
@@ -417,14 +422,21 @@ function animate() {
 
   // blitProgram.blit(TAAProgram.momentMoveRT.write, null);
   // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
-  // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+  blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
   // blitProgram.blit(ResolveProgram.drt.write.texture, null);
 
   if (!blockNextFrame) {
     requestAnimationFrame(animate);
   }
+
+  frameCount++;
+  if (frameCount == 25) {
+    blockNextFrame = true;
+  }
 }
 
+SSRProgram.setSize("Quarter");
+VarianceClampProgram.setSize("Quarter");
 animate();
 
 // init gui

@@ -538,15 +538,12 @@ export default class SSR {
                     vec3 viewDir = normalize(pos - uCameraPos);
                    
 
-                    vec3 w = normalize(uCameraTarget - uCameraPos);
-
                     if(dot(viewDir, norm) > 0.0) norm = -norm;
 
                     if(depth == 0.0) {
-                        out_SSRColor = vec4(0.0, 0.0, 0.0, 1.0);
-                        return;
+                      out_SSRColor = vec4(1.0, 0.0, 0.0, 1.0);
+                      return;
                     }
-
 
                     float roughness = material.x;
                     float metalness = material.y;
@@ -555,26 +552,15 @@ export default class SSR {
 
                     vec3 F0 = vec3(baseF0);
                     F0 = mix(F0, albedo.xyz, metalness);
-
-                    vec4 taaBuffer = texture2D(uTAA, vUv);
-                    vec2 oldUvs    = taaBuffer.xy;
-                    const float MAX_ACCUM_COUNT = 10.0;
-                    float accum    = min(taaBuffer.z, MAX_ACCUM_COUNT);
                    
                     vec3 specularReflectionDir = normalize(reflect(viewDir, norm));
                     vec4 sum = vec4(0.0);
 
-                    float debugVar = 0.0;
-
-
-                    // // **********************************************
-                    // // **********************************************
                     // // **********************************************
                     vec3 p3;
                     vec3 lastP3;
                     vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
                     bool intersected3 = intersect(ro3, specularReflectionDir, p3, lastP3, false);
-                    
 
                     // ******* find reflection meshId
                     vec4 pp5 = vProjectionMatrix * vViewMatrix * vec4(p3, 1.0);
@@ -585,34 +571,6 @@ export default class SSR {
                       intersected3 ? reflectionMeshId : -1.0
                     );
                     // ******* find reflection meshId
-
-
-                    // // p2 assumed in world position
-                    // // pos and normal assumed in world position
-                    // // ************ IMPORTANT ************
-                    // // in all of this, I'm assuming the plane (pos, normal) didn't 
-                    // // move / rotate / scale in the previous frame, this could be wrong
-                    // // also P2 could have been moved / rotated / scaled
-                    // // at some point we should also probably do the planarity test 
-                    // // they had defined on the paper
-                    // vec3 oldReflPoint = findReflectionPoint(intersected3 ? p3 : lastP3, uOldCameraPos, pos, norm);
-                    // vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
-                    // vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
-                    // vec3 oldSSR = texture2D(uOldSSRColor, p3Uv).xyz;
-                    // float oldMeshId = texture2D(uOldMaterial, p3Uv).w;
-
-                    // float oldIntersectionMeshId = texture2D(uOldSSRUv, p3Uv).x;
-                    // float intersectionMeshId = -1.0;
-                    // if (intersected3) {
-                    //   vec4 projP = vProjViewMatrix * vec4(p3, 1.0);
-                    //   vec2 pNdc = (projP / projP.w).xy;
-                    //   vec2 pUv  = pNdc * 0.5 + 0.5;
-                    //   intersectionMeshId = texture2D(uMaterial, pUv).w;
-                    // }
-                    // out_SSRIntersection = vec4(intersectionMeshId, 0.0, 0.0, 0.0);
-                    // // **********************************************
-                    // // **********************************************
-                    // // **********************************************
 
                     vec3 wm;
                     int sampleIndex = uSampleIndex;
@@ -649,44 +607,36 @@ export default class SSR {
                     // we need the intersection of the sampled BRDF ray, NOT the intersection
                     // of the specular ray!
                     out_SSRData = vec4(intersected ? p2 : lastP, pdf);
-                    // out_SSRData = vec4(brdf, pdf);
 
-                    vec2 p2Uv;
-                    if(intersected) {
-                      // intersection validated
+                    if (intersected) {
                       vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
-                      p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
+                      vec2 p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
                       vec3 color = texture2D(uColor, p2Uv).xyz;
-                      // vec3 color = texture2D(uAlbedo, p2Uv).xyz;
                       mult *= color;
+                    } 
 
-                      // out_SSRIntersection = vec4(p2, 0.0);
+                    if (intersected) {
+                      sum += vec4(mult, 0.0);
                     } else {
-                      // intersection is invalid
+                      // vec3 envColor = getEnvmapRadiance(rd) * fresnel; 
+                      vec3 envColor = getEnvmapRadiance(rd) * mult; 
+                      sum += vec4(envColor, 0.0);
                     }
 
-                    bool useTAA = true;
-                    vec4 fragCol = vec4(0.0);
-    
-                    if(useTAA) {
-                      float t = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
-                      // vec3 fresnel = fresnelSchlick(max(dot(rd, norm), 0.0), F0);
+                    out_SSRColor = vec4(sum.xyz, intersected ? 1.0 : 0.0);
 
-                      if (intersected) {
-                        sum += vec4(mult, 0.0);
-                      } else {
-                        // vec3 envColor = getEnvmapRadiance(rd) * fresnel; 
-                        // sum += vec4(envColor, 0.0);
-                        vec3 envColor = getEnvmapRadiance(rd) * mult; 
-                        sum += vec4(envColor, 0.0);
-                      }
-                    } else {
-                      if(intersected) {
-                        sum += vec4(mult, 0.0);
-                      }
-                    }
-
-                    out_SSRColor = vec4(sum.xyz, 0.0);
+                    // if (
+                    //   isinf(lastP.x) || 
+                    //   isnan(lastP.x) ||
+                    //   isinf(lastP.y) || 
+                    //   isnan(lastP.y) ||
+                    //   isinf(lastP.z) || 
+                    //   isnan(lastP.z)
+                    // ) {
+                    //   out_SSRColor = vec4(1.0, 0.0, 0.0, intersected ? 1.0 : 0.0);
+                    // } else {
+                    //   out_SSRColor = vec4(0.0, 1.0, 0.0, intersected ? 1.0 : 0.0);
+                    // }
                 }
             `,
       glslVersion: THREE.GLSL3,

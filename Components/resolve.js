@@ -8,7 +8,9 @@ export default class Resolve {
     normalTexture,
     materialTexture,
     albedoTexture,
-    renderer
+    colorTexture,
+    renderer,
+    blueNoiseTexture
   ) {
     let sizeVector = new THREE.Vector2();
     renderer.getSize(sizeVector);
@@ -28,9 +30,12 @@ export default class Resolve {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         uMaterial: { type: "t", value: materialTexture },
+        uEnvmap: { type: "t", value: materialTexture },
+        uMaterial: { type: "t", value: materialTexture },
         uPosition: { type: "t", value: positionTexture },
         uNormal: { type: "t", value: normalTexture },
         uAlbedo: { type: "t", value: albedoTexture },
+        uColor: { type: "t", value: colorTexture },
         uSSRColor: { type: "t", value: null },
         uSSRIntersection: { type: "t", value: null },
         uSSRData: { type: "t", value: null },
@@ -40,19 +45,25 @@ export default class Resolve {
         uCameraPos: { value: new Vector3(0, 0, 0) },
         uTaps: { value: 9 },
         uDisableResolve: { value: false },
+        uBlueNoise: { type: "t", value: blueNoiseTexture },
+        uBlueNoiseIndex: { value: new THREE.Vector4(0, 0, 0, 0) },
       },
 
       vertexShader: `
         varying vec2 vUv;
+        varying mat4 vProjViewMatrix;
 
         void main() {
           vUv = uv;
+          vProjViewMatrix = projectionMatrix * viewMatrix;
+
           gl_Position = vec4(position.xy, 0.0, 1.0);    
         }
       `,
 
       fragmentShader: `
         varying vec2 vUv;
+        varying mat4 vProjViewMatrix;
 
         uniform sampler2D uSSRColor;
         uniform sampler2D uSSRIntersection;
@@ -61,11 +72,15 @@ export default class Resolve {
         uniform sampler2D uPosition;
         uniform sampler2D uNormal;
         uniform sampler2D uAlbedo;
+        uniform sampler2D uColor;
+        uniform sampler2D uBlueNoise;
+        uniform sampler2D uEnvmap;
 
         uniform vec3 uCameraPos;
         uniform vec2 uFullInvScreen;
         uniform vec2 uInvScreen;
         uniform int uTaps;
+        uniform vec4 uBlueNoiseIndex;
         uniform bool uDisableResolve;
 
         #define PI 3.14159
@@ -74,13 +89,6 @@ export default class Resolve {
           float a = roughness * roughness;
           float nv = dot(N, V);
           return (2.0 * nv) / (nv + sqrt(a*a + (1.0 - a*a) * nv * nv ));
-          
-          // float NdotV = max(dot(N, V), 0.0);
-          // float NdotL = max(dot(N, L), 0.0);
-          // float ggx2  = GeometrySchlickGGX(NdotV, roughness);
-          // float ggx1  = GeometrySchlickGGX(NdotL, roughness);
-        
-          // return ggx1 * ggx2;
         }
 
         float DistributionGGX(vec3 N, vec3 H, float roughness) {
@@ -113,6 +121,92 @@ export default class Resolve {
           // return specular;
         }
 
+        vec3 SampleBRDF(vec3 wo, vec3 norm, int isample, float roughness, out vec3 out_wm) {
+          vec2 blue_uvs = vec2((gl_FragCoord.xy + uBlueNoiseIndex.xy) / 512.0);
+          vec4 blue_noise = texture2D(uBlueNoise, blue_uvs);
+          
+          float r0 = blue_noise.x;
+          float r1 = blue_noise.y - 0.33;   
+
+          r0 = fract(r0 + float(isample) * 19.77);
+          r1 = fract(r1 + float(isample) * 27.337);
+                                                          
+          float a = roughness * roughness;
+          float a2 = a * a;
+          float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0 ) * r0 + 1.0)));
+          float phi = 2.0 * PI * r1;
+          float x = sin(theta) * cos(phi);
+          float y = cos(theta);
+          float z = sin(theta) * sin(phi);
+          vec3 wm = normalize(vec3(x, y, z));
+
+          vec3 w = norm;
+          if(abs(norm.y) < 0.95) {
+            vec3 u = normalize(cross(w, vec3(0.0, 1.0, 0.0)));
+            vec3 v = normalize(cross(u, w));
+            wm = normalize(wm.y * w + wm.x * u + wm.z * v);                    
+          } else {
+            vec3 u = normalize(cross(w, vec3(0.0, 0.0, 1.0)));
+            vec3 v = normalize(cross(u, w));
+            wm = normalize(wm.y * w + wm.x * u + wm.z * v);
+          }
+
+          vec3 wi = reflect(wo, wm);
+          out_wm = wm;
+          return wi;
+        }
+        
+        float samplePDF(vec3 wi, vec3 wo, vec3 norm, float roughness) {
+          vec3 wg = norm;
+          vec3 wm = normalize(wo + wi);
+          float a = roughness * roughness;
+          float a2 = a * a;
+          float cosTheta = dot(wg, wm);
+          float exp = (a2 - 1.0) * cosTheta * cosTheta + 1.0;
+          float D = a2 / (PI * exp * exp);
+          return (D * dot(wm, wg)) / (4.0 * dot(wo,wm));
+        }
+
+        // vec3 RRTAndODTFit( vec3 v ) {
+        //   vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
+        //   vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+        //   return a / b;
+        // }
+        // vec3 ACESFilmicToneMapping( vec3 color ) {
+        //   const mat3 ACESInputMat = mat3(
+        //   vec3( 0.59719, 0.07600, 0.02840 ), vec3( 0.35458, 0.90834, 0.13383 ), vec3( 0.04823, 0.01566, 0.83777 )
+        //   );
+        //   const mat3 ACESOutputMat = mat3(
+        //   vec3(  1.60475, -0.10208, -0.00327 ), vec3( -0.53108, 1.10813, -0.07276 ), vec3( -0.07367, -0.00605, 1.07602 )
+        //   );
+        //   float toneMappingExposure = 1.0;
+        //   color *= toneMappingExposure / 0.6;
+        //   color = ACESInputMat * color;
+        //   color = RRTAndODTFit( color );
+        //   color = ACESOutputMat * color;
+        //   return saturate( color );
+        // }
+
+        // vec4 RGBEToLinear( in vec4 value ) {
+        //   return vec4( value.rgb * exp2( value.a * 255.0 - 128.0 ), 1.0 );
+        // }
+
+        vec3 getEnvmapRadiance(vec3 idir) {
+          vec3 dir = vec3(idir.zyx);
+
+          // skybox coordinates
+          vec2 skyboxUV = vec2(
+            (atan(dir.x, dir.z) + PI) / (PI * 2.0),
+            (asin(dir.y) + PI * 0.5) / (PI)
+          );
+          // vec3 radianceClamp = vec3(100.0);
+          vec3 col = vec3(0.0);
+
+          col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
+
+          return col;
+        }
+
         void tap(
           inout vec3 result, 
           inout vec3 weightSum, vec2 offs, vec3 pos, vec3 norm, 
@@ -139,6 +233,16 @@ export default class Resolve {
         }
 
         void main() {
+
+
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+          // THIS SHADER IS NOT USING THE UNCOMPRESSED ENV
+
+
           vec4 posTexel = texture2D(uPosition, vUv);
           vec3 pos      = posTexel.xyz;
           float depth   = posTexel.w;
@@ -158,28 +262,119 @@ export default class Resolve {
           vec3 result = vec3(0.0);
           vec3 weightSum = vec3(0.0);
 
-          if (uTaps == 25) {
-            for (int i = -2; i <= 2; i++) {
-              for (int j = -2; j <= 2; j++) {
-                vec2 offs = vec2(i, j) * uInvScreen;
-                tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
-              }
-            }
-          } else if (uTaps == 9) {
-            for (int i = -1; i <= 1; i++) {
-              for (int j = -1; j <= 1; j++) {
-                vec2 offs = vec2(i, j) * uInvScreen;
-                tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
-              }
-            }
-          } else if (uTaps == 4) {
-            for (int i = 0; i <= 1; i++) {
-              for (int j = 0; j <= 1; j++) {
-                vec2 offs = vec2(i, j) * uInvScreen;
-                tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
-              }
-            }
+          vec3 lweight;
+          vec3 intersectionP;
+          {
+            vec4 localData = texture2D(uSSRData, vUv);
+            intersectionP = localData.xyz;
+            vec3 wi = normalize(intersectionP - pos);
+            vec3 wo = -viewDir;
+            vec3 localBrdf = clamp(EvalBRDF(wi, wo, norm, roughness, F0), 0.00001, 100.0);
+            float pdf = localData.w;
+            lweight = localBrdf / pdf;
           }
+
+          vec4 ssrColorData = texture2D(uSSRColor, vUv);
+          bool intersected = ssrColorData.w > 0.5 ? true : false;
+
+          // control group
+          result += texture2D(uSSRColor, vUv).xyz * lweight;
+          weightSum += vec3(1.0);
+
+          // *********** new method ***********
+          // *********** new method ***********
+          // *********** new method ***********
+          // *********** new method ***********
+          // for (int i = -1; i <= 1; i++) {
+          //   for (int j = -1; j <= 1; j++) {
+          //     vec3 wm;
+          //     int sampleIndex = i * 10 + j;
+          //     vec3 reflDir = SampleBRDF(viewDir, norm, sampleIndex, roughness, wm);
+          //     reflDir = normalize(reflDir);
+          //     // unfortunately, this even seems very common after a set roughness level
+          //     if(dot(reflDir, norm) < 0.0) {
+          //       // one last attempt, and whatever happens happens
+          //       reflDir = SampleBRDF(viewDir, norm, sampleIndex + 79, roughness, wm);
+          //     }
+          //     if(dot(reflDir, norm) < 0.0) {
+          //       // one last attempt, and whatever happens happens
+          //       reflDir = SampleBRDF(viewDir, norm, sampleIndex + 790, roughness, wm);
+          //     }
+
+          //     float pdf = samplePDF(reflDir, -viewDir, norm, roughness);
+          //     pdf = clamp(pdf, 0.1, 100.0);
+
+          //     vec3 brdf = EvalBRDF(reflDir, -viewDir, norm, roughness, F0);
+          //     brdf = clamp(brdf, 0.00001, 100.0);
+          //     vec3 weight = brdf / pdf;
+
+          //     // if (
+          //     //   // isinf(weight.x) || 
+          //     //   // isnan(weight.x) ||
+          //     //   // isinf(weight.y) || 
+          //     //   // isnan(weight.y) ||
+          //     //   // isinf(weight.z) || 
+          //     //   // isnan(weight.z)
+          //     //   length(weight) < 0.001
+          //     // ) {
+          //     //   result += vec3(1.0);
+          //     //   weightSum += vec3(1.0);
+          //     //   continue;
+          //     // }
+
+          //     float dist = length(intersectionP - pos);
+          //     vec3 p2 = pos + reflDir * dist;
+
+          //     vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
+          //     vec2 p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
+          //     p2Uv.x = clamp(p2Uv.x, 0.0, 1.0);
+          //     p2Uv.y = clamp(p2Uv.y, 0.0, 1.0);
+
+          //     if (intersected) {
+          //       if (p2Uv.x >= 0.0 && p2Uv.x <= 1.0 && p2Uv.y >= 0.0 && p2Uv.y <= 1.0) {
+          //         vec3 color = texture2D(uColor, p2Uv).xyz;
+          //         result += color * weight;
+          //         weightSum += vec3(1.0);
+          //       } else {
+          //         vec3 envColor = getEnvmapRadiance(reflDir) * weight; 
+          //         result += envColor;
+          //         weightSum += vec3(1.0);
+          //       }
+          //     } else {
+          //       vec3 envColor = getEnvmapRadiance(reflDir) * weight; 
+          //       result += envColor;
+          //       weightSum += vec3(1.0);
+          //     }
+          //   }
+          // }
+
+
+
+
+          
+
+          // if (uTaps == 25) {
+          //   for (int i = -2; i <= 2; i++) {
+          //     for (int j = -2; j <= 2; j++) {
+          //       vec2 offs = vec2(i, j) * uInvScreen;
+          //       tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
+          //     }
+          //   }
+          // } else if (uTaps == 9) {
+          //   for (int i = -1; i <= 1; i++) {
+          //     for (int j = -1; j <= 1; j++) {
+          //       vec2 offs = vec2(i, j) * uInvScreen;
+          //       tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
+          //     }
+          //   }
+          // } else if (uTaps == 4) {
+          //   for (int i = 0; i <= 1; i++) {
+          //     for (int j = 0; j <= 1; j++) {
+          //       vec2 offs = vec2(i, j) * uInvScreen;
+          //       tap(result, weightSum, offs, pos, norm, roughness, F0, viewDir);
+          //     }
+          //   }
+          // }
 
           result /= weightSum;
 
@@ -243,6 +438,8 @@ export default class Resolve {
 
     this.scene = new THREE.Scene();
     this.scene.add(this.mesh);
+
+    this.blueNoiseIndex = new THREE.Vector4(0, 0, 0, 0);
   }
 
   setSize(resolution) {
@@ -307,6 +504,10 @@ export default class Resolve {
         i
       );
 
+      this.blueNoiseIndex.setX(Math.floor(Math.random() * 512));
+      this.blueNoiseIndex.setY(Math.floor(Math.random() * 512));
+      this.material.uniforms.uBlueNoiseIndex.value = this.blueNoiseIndex;
+
       if (this.usingLinearIntersectionBuffer) {
         if (SSRProgram.SSRRT.read.texture[2].minFilter != THREE.LinearFilter) {
           SSRProgram.SSRRT.read.texture[2].minFilter = THREE.LinearFilter;
@@ -315,6 +516,7 @@ export default class Resolve {
           SSRProgram.SSRRT.write.texture[2].magFilter = THREE.LinearFilter;
         }
       }
+      this.material.uniforms.uEnvmap.value = envmapEqui;
       this.material.uniforms.uDisableResolve.value = guiControls.disableResolve;
       this.material.uniforms.uTaps.value = guiControls.resolveTaps;
       this.material.uniforms.uCameraPos.value = sceneCamera.position;
