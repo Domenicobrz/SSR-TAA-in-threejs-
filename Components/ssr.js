@@ -417,7 +417,7 @@ export default class SSR {
                 }
 
                 bool intersect(
-                    vec3 ro, vec3 rd, 
+                    vec3 ro, vec3 rd, vec3 norm, vec3 pos,
                     out vec3 intersectionP,
                     out vec3 lastP,
                     bool useJitter
@@ -439,6 +439,7 @@ export default class SSR {
 
                     vec3 p1, p2;
                     vec3 initialP = p;
+                    vec3 positionBufferAtHitPoint;
                     for(int i = 0; i < steps; i++) {
 
                         // at the end of the loop, we'll advance p by jittB to keep the jittered sampling in the proper "cell" 
@@ -454,7 +455,9 @@ export default class SSR {
                         vec4 projP = vProjViewMatrix * vec4(p, 1.0);
                         vec2 pNdc = (projP / projP.w).xy;
                         vec2 pUv  = pNdc * 0.5 + 0.5;
-                        float depthAtPosBuff = texture2D(uPosition, pUv).w;
+                        vec4 posBuffer = texture2D(uPosition, pUv);
+                        positionBufferAtHitPoint = posBuffer.xyz;
+                        float depthAtPosBuff = posBuffer.w;
 
                         if(depthAtPosBuff == 0.0) {
                             depthAtPosBuff = 9999999.0;
@@ -472,6 +475,16 @@ export default class SSR {
                             p2 = p;
                             lastRecordedDepthBuffThatIntersected = depthAtPosBuff;
                             possibleIntersection = true;
+
+
+                            // notice that we need to use pos instead of ro since
+                            // ro is slightly offsetted depending on depth
+                            vec3 t = normalize(positionBufferAtHitPoint - pos);
+                            if (abs(dot(t, norm)) < 0.000001) {
+                              // self-intersection case, theoretically this is not a valid intersection
+                              possibleIntersection = false;
+                            }
+
 
                             break;
                         }
@@ -560,7 +573,7 @@ export default class SSR {
                     vec3 p3;
                     vec3 lastP3;
                     vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
-                    bool intersected3 = intersect(ro3, specularReflectionDir, p3, lastP3, false);
+                    bool intersected3 = intersect(ro3, specularReflectionDir, norm, pos, p3, lastP3, false);
 
                     // ******* find reflection meshId
                     vec4 pp5 = vProjectionMatrix * vViewMatrix * vec4(p3, 1.0);
@@ -601,7 +614,7 @@ export default class SSR {
 
                     vec3 p2;
                     vec3 lastP;
-                    bool intersected = intersect(ro, rd, p2, lastP, true);
+                    bool intersected = intersect(ro, rd, norm, pos, p2, lastP, true);
 
                     // ********* ! careful here ! **********
                     // we need the intersection of the sampled BRDF ray, NOT the intersection
@@ -624,19 +637,6 @@ export default class SSR {
                     }
 
                     out_SSRColor = vec4(sum.xyz, intersected ? 1.0 : 0.0);
-
-                    // if (
-                    //   isinf(lastP.x) || 
-                    //   isnan(lastP.x) ||
-                    //   isinf(lastP.y) || 
-                    //   isnan(lastP.y) ||
-                    //   isinf(lastP.z) || 
-                    //   isnan(lastP.z)
-                    // ) {
-                    //   out_SSRColor = vec4(1.0, 0.0, 0.0, intersected ? 1.0 : 0.0);
-                    // } else {
-                    //   out_SSRColor = vec4(0.0, 1.0, 0.0, intersected ? 1.0 : 0.0);
-                    // }
                 }
             `,
       glslVersion: THREE.GLSL3,

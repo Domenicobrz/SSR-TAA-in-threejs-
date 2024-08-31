@@ -262,96 +262,70 @@ export default class Resolve {
           vec3 result = vec3(0.0);
           vec3 weightSum = vec3(0.0);
 
-          vec3 lweight;
+          // vec3 lweight;
           vec3 intersectionP;
           {
             vec4 localData = texture2D(uSSRData, vUv);
             intersectionP = localData.xyz;
-            vec3 wi = normalize(intersectionP - pos);
-            vec3 wo = -viewDir;
-            vec3 localBrdf = clamp(EvalBRDF(wi, wo, norm, roughness, F0), 0.00001, 100.0);
-            float pdf = localData.w;
-            lweight = localBrdf / pdf;
+            // vec3 wi = normalize(intersectionP - pos);
+            // vec3 wo = -viewDir;
+            // vec3 localBrdf = clamp(EvalBRDF(wi, wo, norm, roughness, F0), 0.00001, 100.0);
+            // float pdf = localData.w;
+            // lweight = localBrdf / pdf;
           }
 
           vec4 ssrColorData = texture2D(uSSRColor, vUv);
           bool intersected = ssrColorData.w > 0.5 ? true : false;
 
-          // control group
-          result += texture2D(uSSRColor, vUv).xyz * lweight;
-          weightSum += vec3(1.0);
-
           // *********** new method ***********
-          // *********** new method ***********
-          // *********** new method ***********
-          // *********** new method ***********
-          // for (int i = -1; i <= 1; i++) {
-          //   for (int j = -1; j <= 1; j++) {
-          //     vec3 wm;
-          //     int sampleIndex = i * 10 + j;
-          //     vec3 reflDir = SampleBRDF(viewDir, norm, sampleIndex, roughness, wm);
-          //     reflDir = normalize(reflDir);
-          //     // unfortunately, this even seems very common after a set roughness level
-          //     if(dot(reflDir, norm) < 0.0) {
-          //       // one last attempt, and whatever happens happens
-          //       reflDir = SampleBRDF(viewDir, norm, sampleIndex + 79, roughness, wm);
-          //     }
-          //     if(dot(reflDir, norm) < 0.0) {
-          //       // one last attempt, and whatever happens happens
-          //       reflDir = SampleBRDF(viewDir, norm, sampleIndex + 790, roughness, wm);
-          //     }
+          for (int i = 0; i < 8; i++) {
+            vec3 wm;
+            int sampleIndex = i;
+            // ************* THIS IS WRONG: MAKE SURE EACH PIXEL
+            // ************* GETS A DIFFERENT SET OF DIRECTIONS / sampleIndex 
+            // ************* ---- ALSO DIFFERENT DIRECTIONS FOR EACH FRAME 
+            vec3 reflDir = SampleBRDF(viewDir, norm, sampleIndex, roughness, wm);
+            reflDir = normalize(reflDir);
+            // unfortunately, this even seems very common after a set roughness level
+            if(dot(reflDir, norm) < 0.0) {
+              // one last attempt, and whatever happens happens
+              reflDir = SampleBRDF(viewDir, norm, sampleIndex + 79, roughness, wm);
+            }
+            // using this second attempt can be significant in terms of performance unfortunately,
+            // and it doesn't seem to improve significantly the output
+            // if(dot(reflDir, norm) < 0.0) {
+            //   // one last attempt, and whatever happens happens
+            //   reflDir = SampleBRDF(viewDir, norm, sampleIndex + 790, roughness, wm);
+            // }
 
-          //     float pdf = samplePDF(reflDir, -viewDir, norm, roughness);
-          //     pdf = clamp(pdf, 0.1, 100.0);
+            float pdf = samplePDF(reflDir, -viewDir, norm, roughness);
+            pdf = clamp(pdf, 0.1, 100.0);
 
-          //     vec3 brdf = EvalBRDF(reflDir, -viewDir, norm, roughness, F0);
-          //     brdf = clamp(brdf, 0.00001, 100.0);
-          //     vec3 weight = brdf / pdf;
+            vec3 brdf = EvalBRDF(reflDir, -viewDir, norm, roughness, F0);
+            brdf = clamp(brdf, 0.00001, 100.0);
+            vec3 weight = brdf / pdf;
 
-          //     // if (
-          //     //   // isinf(weight.x) || 
-          //     //   // isnan(weight.x) ||
-          //     //   // isinf(weight.y) || 
-          //     //   // isnan(weight.y) ||
-          //     //   // isinf(weight.z) || 
-          //     //   // isnan(weight.z)
-          //     //   length(weight) < 0.001
-          //     // ) {
-          //     //   result += vec3(1.0);
-          //     //   weightSum += vec3(1.0);
-          //     //   continue;
-          //     // }
+            float dist = length(intersectionP - pos);
+            vec3 p2 = pos + reflDir * dist;
 
-          //     float dist = length(intersectionP - pos);
-          //     vec3 p2 = pos + reflDir * dist;
+            vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
+            vec2 p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
+            p2Uv.x = clamp(p2Uv.x, 0.0, 1.0);
+            p2Uv.y = clamp(p2Uv.y, 0.0, 1.0);  
 
-          //     vec4 projP2 = vProjViewMatrix * vec4(p2, 1.0);
-          //     vec2 p2Uv = (projP2 / projP2.w).xy * 0.5 + 0.5;
-          //     p2Uv.x = clamp(p2Uv.x, 0.0, 1.0);
-          //     p2Uv.y = clamp(p2Uv.y, 0.0, 1.0);
-
-          //     if (intersected) {
-          //       if (p2Uv.x >= 0.0 && p2Uv.x <= 1.0 && p2Uv.y >= 0.0 && p2Uv.y <= 1.0) {
-          //         vec3 color = texture2D(uColor, p2Uv).xyz;
-          //         result += color * weight;
-          //         weightSum += vec3(1.0);
-          //       } else {
-          //         vec3 envColor = getEnvmapRadiance(reflDir) * weight; 
-          //         result += envColor;
-          //         weightSum += vec3(1.0);
-          //       }
-          //     } else {
-          //       vec3 envColor = getEnvmapRadiance(reflDir) * weight; 
-          //       result += envColor;
-          //       weightSum += vec3(1.0);
-          //     }
-          //   }
-          // }
-
-
-
-
-          
+            if (
+              intersected && 
+              (p2Uv.x >= 0.0 && p2Uv.x <= 1.0 && p2Uv.y >= 0.0 && p2Uv.y <= 1.0)
+            ) {
+              vec3 color = texture2D(uColor, p2Uv).xyz;
+              result += color * weight;
+              weightSum += vec3(1.0);
+            } else {
+              vec3 envColor = getEnvmapRadiance(reflDir) * weight; 
+              result += envColor;
+              weightSum += vec3(1.0);
+            }
+          }
 
           // if (uTaps == 25) {
           //   for (int i = -2; i <= 2; i++) {
@@ -381,6 +355,10 @@ export default class Resolve {
           if (uDisableResolve) {
             result = texture2D(uSSRColor, vUv).xyz;
           }
+
+          // // control group
+          // result = texture2D(uSSRColor, vUv).xyz * lweight;
+          // weightSum = vec3(1.0);
   
           gl_FragColor = vec4(result, 1.0);
         }

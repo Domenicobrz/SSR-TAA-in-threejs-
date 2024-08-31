@@ -74,14 +74,12 @@ export let guiControls = {
   multiplier: 1,
   atrousSteps: 1,
   samples: 1,
-  // accumTimeFactor: 0.9,
-  accumTimeFactor: 0,
+  accumTimeFactor: 0.9,
   gamma: 1,
   uncompressedEnv: false,
   resolveTaps: 4,
   disableResolve: false,
-  // resolution: "Full",
-  resolution: "Quarter",
+  resolution: "Full",
   preset: "Medium quality",
 };
 
@@ -422,21 +420,14 @@ function animate() {
 
   // blitProgram.blit(TAAProgram.momentMoveRT.write, null);
   // blitProgram.blit(SSRBuffersProgram.GBuffer.texture[3], null);
-  blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
+  // blitProgram.blit(SSRProgram.SSRRT.write.texture[0], null);
   // blitProgram.blit(ResolveProgram.drt.write.texture, null);
 
   if (!blockNextFrame) {
     requestAnimationFrame(animate);
   }
-
-  frameCount++;
-  if (frameCount == 25) {
-    blockNextFrame = true;
-  }
 }
 
-SSRProgram.setSize("Quarter");
-VarianceClampProgram.setSize("Quarter");
 animate();
 
 // init gui
