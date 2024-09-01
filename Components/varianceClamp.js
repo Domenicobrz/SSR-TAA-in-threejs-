@@ -20,7 +20,7 @@ export default class VarianceClamp {
     // they are *worse* if I activate them
     this.preFilterSSR = false;
     this.usingLinearIntersectionBuffer = false;
-    this.keepRTAtFullRes = false;
+    this.keepRTAtFullRes = true;
 
     this.drt = drt;
 
@@ -109,34 +109,36 @@ export default class VarianceClamp {
           vec4 ssrInt = texture2D(uSSRIntersection, vUv);
           float reflectionMeshId = ssrInt.w;
 
-          vec3 oldReflPoint = findReflectionPoint(ssrInt.xyz, uOldCameraPos, pos, norm);
-          vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
-          vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
+          // vec3 oldReflPoint = findReflectionPoint(ssrInt.xyz, uOldCameraPos, pos, norm);
+          // vec4 projP3 = vProjectionMatrix * uOldViewMatrix * vec4(oldReflPoint, 1.0);
+          // vec2 p3Uv = (projP3 / projP3.w).xy * 0.5 + 0.5;
 
-          if (uUsingLinearIntersectionBuffer) {
-            // I don't know why I have to do this in this case..
-            p3Uv -= vec2(
-              mod(p3Uv.x, uFullInvScreen.x),
-              mod(p3Uv.y, uFullInvScreen.y)
-            ) - uFullInvScreen * 0.5;
-          }
-          
-          vec3 reprojectedColor = texture2D(uOldSSRColor, p3Uv).xyz;
+          // if (uUsingLinearIntersectionBuffer) {
+          //   // I don't know why I have to do this in this case..
+          //   p3Uv -= vec2(
+          //     mod(p3Uv.x, uFullInvScreen.x),
+          //     mod(p3Uv.y, uFullInvScreen.y)
+          //   ) - uFullInvScreen * 0.5;
+          // }
 
-          float oldReflectionMeshId = texture2D(uOldSSRIntersection, p3Uv).w;
-          float reprojectedSurfaceMeshId = texture2D(uOldMaterial, p3Uv).w;
 
           vec4 taaBuffer = texture2D(uTAA, vUv);
           const float MAX_ACCUM_COUNT = 10.0;
           float accum = min(taaBuffer.z, MAX_ACCUM_COUNT);
           float a = (accum * (1.0 / MAX_ACCUM_COUNT)) * uAccumTimeFactor;
 
-          if (abs(meshId - reprojectedSurfaceMeshId) > 0.5) {
-            a = 0.0;
-          }
-          if (abs(reflectionMeshId - oldReflectionMeshId) > 0.5) {
-            a = 0.0;
-          }
+          vec3 reprojectedColor = texture2D(uOldSSRColor, vUv + taaBuffer.xy).xyz;
+          
+          // vec3 reprojectedColor = texture2D(uOldSSRColor, p3Uv).xyz;
+          // float oldReflectionMeshId = texture2D(uOldSSRIntersection, p3Uv).w;
+          // float reprojectedSurfaceMeshId = texture2D(uOldMaterial, p3Uv).w;
+
+          // if (abs(meshId - reprojectedSurfaceMeshId) > 0.5) {
+          //   a = 0.0;
+          // }
+          // if (abs(reflectionMeshId - oldReflectionMeshId) > 0.5) {
+          //   a = 0.0;
+          // }
 
           // // neighbor search + AABB clamping
           // vec3 minColor = vec3(999.0);

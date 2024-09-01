@@ -155,6 +155,8 @@ export default class SSR {
                 in mat4 vProjViewMatrix;
                 in mat4 vViewMatrix;
 
+                const float SCENE_BOUNDS = 50.0;
+
                 float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
                 float rand(vec2 co)  { return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
                 float rand(vec3 co)  { return rand(co.xy+rand(co.z)); }
@@ -483,6 +485,10 @@ export default class SSR {
                             if (abs(dot(t, norm)) < 0.000001) {
                               // self-intersection case, theoretically this is not a valid intersection
                               possibleIntersection = false;
+
+                              // I'm doing this in case I want to be able to interpolate the 
+                              // intersection point inside the resolve pass
+                              p += rd * SCENE_BOUNDS;
                             }
 
 
@@ -570,19 +576,20 @@ export default class SSR {
                     vec4 sum = vec4(0.0);
 
                     // // **********************************************
-                    vec3 p3;
-                    vec3 lastP3;
-                    vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
-                    bool intersected3 = intersect(ro3, specularReflectionDir, norm, pos, p3, lastP3, false);
+                    // vec3 p3;
+                    // vec3 lastP3;
+                    // vec3 ro3 = pos + specularReflectionDir * max(0.01, 0.01 * depth);
+                    // bool intersected3 = intersect(ro3, specularReflectionDir, norm, pos, p3, lastP3, false);
 
-                    // ******* find reflection meshId
-                    vec4 pp5 = vProjectionMatrix * vViewMatrix * vec4(p3, 1.0);
-                    vec2 pp5Uv = (pp5 / pp5.w).xy * 0.5 + 0.5;
-                    float reflectionMeshId = texture2D(uMaterial, pp5Uv).w;
-                    out_SSRIntersection = vec4(
-                      intersected3 ? p3 : lastP3, 
-                      intersected3 ? reflectionMeshId : -1.0
-                    );
+                    // // ******* find reflection meshId
+                    // vec4 pp5 = vProjectionMatrix * vViewMatrix * vec4(p3, 1.0);
+                    // vec2 pp5Uv = (pp5 / pp5.w).xy * 0.5 + 0.5;
+                    // float reflectionMeshId = texture2D(uMaterial, pp5Uv).w;
+                    // out_SSRIntersection = vec4(
+                    //   intersected3 ? p3 : lastP3, 
+                    //   intersected3 ? reflectionMeshId : -1.0
+                    // );
+                    out_SSRIntersection = vec4(0.0);
                     // ******* find reflection meshId
 
                     vec3 wm;

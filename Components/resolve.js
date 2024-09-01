@@ -17,6 +17,7 @@ export default class Resolve {
     this.sizeVector = sizeVector;
 
     this.keepRTAtFullRes = true;
+    this.usingLinearIntersectionBuffer = false;
     // this.usingLinearIntersectionBuffer = true;
 
     this.drt = DoubleRT(sizeVector.x, sizeVector.y, THREE.LinearFilter);
@@ -45,6 +46,7 @@ export default class Resolve {
         uCameraPos: { value: new Vector3(0, 0, 0) },
         uTaps: { value: 9 },
         uDisableResolve: { value: false },
+        uSampleIntRand: { value: 0 },
         uBlueNoise: { type: "t", value: blueNoiseTexture },
         uBlueNoiseIndex: { value: new THREE.Vector4(0, 0, 0, 0) },
       },
@@ -83,7 +85,13 @@ export default class Resolve {
         uniform vec4 uBlueNoiseIndex;
         uniform bool uDisableResolve;
 
+        uniform int uSampleIntRand;
+
         #define PI 3.14159
+
+        float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
+        float rand(vec2 co)  { return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
+        float rand(vec3 co)  { return rand(co.xy+rand(co.z)); }
 
         float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
           float a = roughness * roughness;
@@ -128,8 +136,8 @@ export default class Resolve {
           float r0 = blue_noise.x;
           float r1 = blue_noise.y - 0.33;   
 
-          r0 = fract(r0 + float(isample) * 19.77);
-          r1 = fract(r1 + float(isample) * 27.337);
+          r0 = fract(r0 + float(isample) * 19.737);
+          r1 = fract(r1 + float(isample) * 27.397);
                                                           
           float a = roughness * roughness;
           float a2 = a * a;
@@ -167,26 +175,25 @@ export default class Resolve {
           return (D * dot(wm, wg)) / (4.0 * dot(wo,wm));
         }
 
-        // vec3 RRTAndODTFit( vec3 v ) {
+        // vec3 _RRTAndODTFit( vec3 v ) {
         //   vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
         //   vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
         //   return a / b;
         // }
-        // vec3 ACESFilmicToneMapping( vec3 color ) {
-        //   const mat3 ACESInputMat = mat3(
-        //   vec3( 0.59719, 0.07600, 0.02840 ), vec3( 0.35458, 0.90834, 0.13383 ), vec3( 0.04823, 0.01566, 0.83777 )
-        //   );
-        //   const mat3 ACESOutputMat = mat3(
-        //   vec3(  1.60475, -0.10208, -0.00327 ), vec3( -0.53108, 1.10813, -0.07276 ), vec3( -0.07367, -0.00605, 1.07602 )
-        //   );
-        //   float toneMappingExposure = 1.0;
-        //   color *= toneMappingExposure / 0.6;
-        //   color = ACESInputMat * color;
-        //   color = RRTAndODTFit( color );
-        //   color = ACESOutputMat * color;
-        //   return saturate( color );
-        // }
-
+        vec3 custom_ACESFilmicToneMapping( vec3 color ) {
+          const mat3 ACESInputMat = mat3(
+          vec3( 0.59719, 0.07600, 0.02840 ), vec3( 0.35458, 0.90834, 0.13383 ), vec3( 0.04823, 0.01566, 0.83777 )
+          );
+          const mat3 ACESOutputMat = mat3(
+          vec3(  1.60475, -0.10208, -0.00327 ), vec3( -0.53108, 1.10813, -0.07276 ), vec3( -0.07367, -0.00605, 1.07602 )
+          );
+          float toneMappingExposure = 1.0;
+          color *= toneMappingExposure / 0.6;
+          color = ACESInputMat * color;
+          color = RRTAndODTFit( color );
+          color = ACESOutputMat * color;
+          return saturate( color );
+        }
         // vec4 RGBEToLinear( in vec4 value ) {
         //   return vec4( value.rgb * exp2( value.a * 255.0 - 128.0 ), 1.0 );
         // }
@@ -202,7 +209,7 @@ export default class Resolve {
           // vec3 radianceClamp = vec3(100.0);
           vec3 col = vec3(0.0);
 
-          col = ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
+          col = custom_ACESFilmicToneMapping(RGBEToLinear(texture2D(uEnvmap, skyboxUV)).xyz);
 
           return col;
         }
@@ -265,8 +272,18 @@ export default class Resolve {
           // vec3 lweight;
           vec3 intersectionP;
           {
+            // vec2 roffs = vec2(
+            //   (rand(
+            //     mod(gl_FragCoord.x, 35.0) + mod(gl_FragCoord.y, 35.0) + float(uSampleIntRand) * 0.679 * 19.783
+            //   ) * 2.0 - 1.0) * uInvScreen.x * 4.0,
+            //   (rand(
+            //     mod(gl_FragCoord.x, 15.0) + mod(gl_FragCoord.y, 19.0) + float(uSampleIntRand) * 1.78 * 29.783
+            //   ) * 2.0 - 1.0) * uInvScreen.y * 4.0
+            // );
+            // vec4 localData = texture2D(uSSRData, vUv + roffs);
             vec4 localData = texture2D(uSSRData, vUv);
             intersectionP = localData.xyz;
+
             // vec3 wi = normalize(intersectionP - pos);
             // vec3 wo = -viewDir;
             // vec3 localBrdf = clamp(EvalBRDF(wi, wo, norm, roughness, F0), 0.00001, 100.0);
@@ -280,7 +297,7 @@ export default class Resolve {
           // *********** new method ***********
           for (int i = 0; i < 8; i++) {
             vec3 wm;
-            int sampleIndex = i;
+            int sampleIndex = i + int(mod(gl_FragCoord.x, 35.0)) + int(mod(gl_FragCoord.y, 35.0)) + uSampleIntRand;
             // ************* THIS IS WRONG: MAKE SURE EACH PIXEL
             // ************* GETS A DIFFERENT SET OF DIRECTIONS / sampleIndex 
             // ************* ---- ALSO DIFFERENT DIRECTIONS FOR EACH FRAME 
@@ -497,6 +514,9 @@ export default class Resolve {
       this.material.uniforms.uEnvmap.value = envmapEqui;
       this.material.uniforms.uDisableResolve.value = guiControls.disableResolve;
       this.material.uniforms.uTaps.value = guiControls.resolveTaps;
+      this.material.uniforms.uSampleIntRand.value = Math.floor(
+        Math.random() * 350
+      );
       this.material.uniforms.uCameraPos.value = sceneCamera.position;
       this.material.uniforms.uSSRData.value = SSRProgram.SSRRT.write.texture[2];
       this.material.uniforms.uSSRColor.value =
